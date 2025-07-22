@@ -34,6 +34,10 @@ router.get('/google/callback',
 
 // Success page (for Chrome extension communication)
 router.get('/success', (req, res) => {
+  // Set permissive headers for popup communication
+  res.setHeader('X-Frame-Options', 'ALLOWALL');
+  res.setHeader('Content-Security-Policy', "frame-ancestors *; script-src 'unsafe-inline' *; object-src 'none';");
+  
   const token = req.query.token;
   res.send(`
     <!DOCTYPE html>
@@ -58,15 +62,34 @@ router.get('/success', (req, res) => {
         console.log('🎯 Auth success page loaded');
         console.log('Token data:', ${JSON.stringify(token)});
         
-        // Store auth data for extension to pick up (try both windows)
+        // Generate unique session ID for this auth attempt
+        const sessionId = 'auth_' + Date.now();
+        console.log('Session ID:', sessionId);
+        
+        // Store auth data for extension to pick up (multiple strategies)
         localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+        localStorage.setItem('calendar_auth_session', sessionId);
+        
+        // Try to set in opener window
         if (window.opener) {
           try {
             window.opener.localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+            window.opener.localStorage.setItem('calendar_auth_session', sessionId);
             console.log('✅ Set localStorage in opener window');
           } catch (e) {
             console.log('❌ Could not set localStorage in opener:', e);
           }
+        }
+        
+        // Also try setting in top window (if different)
+        try {
+          if (window.top !== window) {
+            window.top.localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+            window.top.localStorage.setItem('calendar_auth_session', sessionId);
+            console.log('✅ Set localStorage in top window');
+          }
+        } catch (e) {
+          console.log('❌ Could not set localStorage in top window:', e);
         }
         
         // Send postMessage to parent window

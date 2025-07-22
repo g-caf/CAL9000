@@ -569,9 +569,9 @@ function createPopup() {
       connectButton.textContent = 'Connecting...';
       connectButton.disabled = true;
       
-      // Open backend OAuth in popup
+      // Open backend OAuth in popup  
       const authUrl = 'https://cal9000.onrender.com/auth/google';
-      const popup = window.open(authUrl, 'google-auth', 'width=500,height=600');
+      const popup = window.open(authUrl, '_blank', 'width=500,height=600,scrollbars=yes,resizable=yes');
       
       if (!popup) {
         throw new Error('Popup blocked. Please allow popups for this site.');
