@@ -67,10 +67,10 @@ router.get('/success', (req, res) => {
         // Also store in localStorage as fallback
         localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
         
-        // Auto-close after 3 seconds
+        // Auto-close after 1 second (faster detection)
         setTimeout(() => {
           window.close();
-        }, 3000);
+        }, 1000);
       </script>
     </body>
     </html>
