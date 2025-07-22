@@ -522,12 +522,31 @@ function createPopup() {
     font-weight: 500;
   `;
 
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = `
+    display: flex;
+    gap: 5px;
+  `;
+
   const connectButton = document.createElement('button');
   connectButton.textContent = 'Connect';
   connectButton.style.cssText = `
     padding: 4px 12px;
     border: 1px solid #4285f4;
     background: #4285f4;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+  `;
+
+  const oauthButton = document.createElement('button');
+  oauthButton.textContent = 'OAuth';
+  oauthButton.style.cssText = `
+    padding: 4px 8px;
+    border: 1px solid #28a745;
+    background: #28a745;
     color: white;
     border-radius: 4px;
     cursor: pointer;
@@ -559,8 +578,132 @@ function createPopup() {
     }
   });
 
+  // Add click handler for OAuth button (uses backend OAuth)
+  oauthButton.addEventListener('click', async () => {
+    try {
+      oauthButton.textContent = 'OAuth...';
+      oauthButton.disabled = true;
+      
+      // Open backend OAuth in popup
+      const authUrl = 'https://cal9000.onrender.com/auth/google';
+      const popup = window.open(authUrl, 'google-auth', 'width=500,height=600');
+      
+      if (!popup) {
+        throw new Error('Popup blocked. Please allow popups for this site.');
+      }
+
+      // Listen for auth success
+      const authPromise = new Promise((resolve, reject) => {
+        let resolved = false;
+        
+        const checkClosed = setInterval(() => {
+          if (popup.closed && !resolved) {
+            // Check localStorage immediately when popup closes
+            const authSuccess = localStorage.getItem('calendar_auth_success');
+            if (authSuccess) {
+              console.log('✅ Found auth success in localStorage after popup closed');
+              resolved = true;
+              clearInterval(checkClosed);
+              clearInterval(checkStorage);
+              window.removeEventListener('message', messageHandler);
+              
+              const authData = JSON.parse(authSuccess);
+              localStorage.removeItem('calendar_auth_success');
+              localStorage.setItem('backend_auth_token', authData.accessToken);
+              localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
+              
+              resolve(authData);
+            } else {
+              clearInterval(checkClosed);
+              clearInterval(checkStorage);
+              window.removeEventListener('message', messageHandler);
+              reject(new Error('Authentication window was closed'));
+            }
+          }
+        }, 250); // Reduced to 250ms for faster detection
+
+        // Listen for postMessage from auth success page
+        const messageHandler = (event) => {
+          console.log('🔔 Received message:', event.origin, event.data);
+          
+          if (event.origin !== 'https://cal9000.onrender.com') {
+            console.log('❌ Wrong origin:', event.origin);
+            return;
+          }
+          
+          if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+            console.log('✅ Auth success message received');
+            resolved = true;
+            clearInterval(checkClosed);
+            clearInterval(checkStorage);
+            window.removeEventListener('message', messageHandler);
+            popup.close();
+            
+            const authData = JSON.parse(event.data.data);
+            localStorage.setItem('backend_auth_token', authData.accessToken);
+            localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
+            
+            resolve(authData);
+          }
+        };
+
+        window.addEventListener('message', messageHandler);
+        
+        // Also check localStorage periodically (fallback)
+        const checkStorage = setInterval(() => {
+          if (!resolved) {
+            const authSuccess = localStorage.getItem('calendar_auth_success');
+            if (authSuccess) {
+              console.log('✅ Found auth success in localStorage');
+              resolved = true;
+              clearInterval(checkClosed);
+              clearInterval(checkStorage);
+              window.removeEventListener('message', messageHandler);
+              if (!popup.closed) popup.close();
+              
+              const authData = JSON.parse(authSuccess);
+              localStorage.removeItem('calendar_auth_success'); // Clean up
+              localStorage.setItem('backend_auth_token', authData.accessToken);
+              localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
+              
+              resolve(authData);
+            }
+          }
+        }, 250); // Reduced to 250ms for faster detection
+        
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          if (!resolved) {
+            clearInterval(checkClosed);
+            clearInterval(checkStorage);
+            window.removeEventListener('message', messageHandler);
+            if (!popup.closed) popup.close();
+            reject(new Error('Authentication timeout'));
+          }
+        }, 300000);
+      });
+
+      const authData = await authPromise;
+      
+      connectionStatus.textContent = `Google Calendar: Connected ✓ (${authData.user.email})`;
+      connectionStatus.style.color = '#28a745';
+      buttonContainer.style.display = 'none';
+      console.log('✅ Successfully connected via backend OAuth');
+      
+    } catch (error) {
+      console.error('Backend OAuth flow failed:', error);
+      connectionStatus.textContent = 'Google Calendar: OAuth failed';
+      connectionStatus.style.color = '#dc3545';
+      oauthButton.textContent = 'OAuth';
+      oauthButton.disabled = false;
+    }
+  });
+
+  buttonContainer.appendChild(connectButton);
+  buttonContainer.appendChild(oauthButton);
+  
   connectionContainer.appendChild(connectionStatus);
-  connectionContainer.appendChild(connectButton);
+  connectionContainer.appendChild(buttonContainer);
 
   // Create textarea
   const textarea = document.createElement('textarea');

@@ -56,21 +56,26 @@ router.get('/success', (req, res) => {
       </div>
       <script>
         // Store auth data for extension to pick up
+        localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+        
+        // Send postMessage to parent window
         if (window.opener) {
           window.opener.postMessage({
             type: 'GOOGLE_AUTH_SUCCESS',
             data: ${JSON.stringify(token)}
           }, '*');
-          window.close();
         }
         
-        // Also store in localStorage as fallback
-        localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
-        
-        // Auto-close after 1 second (faster detection)
+        // Give extension time to detect success before auto-closing
         setTimeout(() => {
+          if (window.opener) {
+            window.opener.postMessage({
+              type: 'GOOGLE_AUTH_SUCCESS',
+              data: ${JSON.stringify(token)}
+            }, '*');
+          }
           window.close();
-        }, 1000);
+        }, 3000); // Increased to 3 seconds
       </script>
     </body>
     </html>
