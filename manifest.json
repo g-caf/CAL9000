@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Calendar Slack Sync",
+  "version": "1.0.0",
+  "description": "Extract availability from Slack messages with timezone conversion and Google Calendar conflict detection",
+  "permissions": [
+    "activeTab",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "527047051561-fcdkkdg4i89d7njf8o1f9q2j2dqeg9q8.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/calendar"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://calendar.google.com/*",
+        "https://*.slack.com/*"
+      ],
+      "js": ["calendar-api.js", "content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
