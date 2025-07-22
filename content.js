@@ -49,10 +49,11 @@ function startLimitedParsing() {
 // Get calendar events using Google Calendar API
 async function getCalendarEventsAsync(selectedDuration = null) {
   try {
-    console.log('📅 Fetching calendar events via Google Calendar API...');
+    console.log('📅 Fetching calendar events via backend API...');
     
-    if (!window.calendarAPI) {
-      throw new Error('Calendar API not available');
+    const token = localStorage.getItem('backend_auth_token');
+    if (!token) {
+      throw new Error('Not authenticated with backend');
     }
 
     // Get the date range for events (current week + buffer)
@@ -67,24 +68,43 @@ async function getCalendarEventsAsync(selectedDuration = null) {
 
     console.log(`📅 Fetching events from ${startOfWeek.toLocaleDateString()} to ${endOfWeek.toLocaleDateString()}`);
 
-    // Fetch events from the API
-    const events = await window.calendarAPI.getEvents(startOfWeek, endOfWeek);
+    // Fetch events from backend
+    const response = await fetch('https://cal9000.onrender.com/calendar/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        timeMin: startOfWeek.toISOString(),
+        timeMax: endOfWeek.toISOString()
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const events = data.events || [];
     
-    console.log(`✅ API fetched ${events.length} relevant events`);
+    console.log(`✅ Backend API fetched ${events.length} relevant events`);
     
     // Convert to format expected by existing conflict detection code
     return events.map(event => ({
-      title: event.title,
-      start: event.start,
-      end: event.end,
-      isAllDay: event.isAllDay,
+      title: event.summary || event.title || 'Untitled',
+      start: new Date(event.start.dateTime || event.start.date),
+      end: new Date(event.end.dateTime || event.end.date),
+      isAllDay: !event.start.dateTime,
       element: null, // No DOM element since this is from API
-      timeText: `${event.start.toLocaleTimeString()} - ${event.end.toLocaleTimeString()}`,
+      timeText: event.start.dateTime ? 
+        `${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}` :
+        'All day',
       raw: event
     }));
     
   } catch (error) {
-    console.error('❌ Failed to fetch events via API, falling back to DOM parsing:', error);
+    console.error('❌ Failed to fetch events via backend API, falling back to DOM parsing:', error);
     
     // Fallback to DOM parsing if API fails
     return getCalendarEventsDOMFallback(selectedDuration);
@@ -541,48 +561,13 @@ function createPopup() {
     transition: all 0.2s;
   `;
 
-  const oauthButton = document.createElement('button');
-  oauthButton.textContent = 'OAuth';
-  oauthButton.style.cssText = `
-    padding: 4px 8px;
-    border: 1px solid #28a745;
-    background: #28a745;
-    color: white;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 11px;
-    transition: all 0.2s;
-  `;
+
 
   // Add click handler for connect button
   connectButton.addEventListener('click', async () => {
     try {
       connectButton.textContent = 'Connecting...';
       connectButton.disabled = true;
-      
-      if (window.calendarAPI) {
-        await window.calendarAPI.authenticate();
-        connectionStatus.textContent = 'Google Calendar: Connected ✓';
-        connectionStatus.style.color = '#28a745';
-        connectButton.style.display = 'none';
-        console.log('✅ Successfully connected to Google Calendar');
-      } else {
-        throw new Error('Calendar API not available');
-      }
-    } catch (error) {
-      console.error('Failed to connect to Google Calendar:', error);
-      connectionStatus.textContent = 'Google Calendar: Connection failed';
-      connectionStatus.style.color = '#dc3545';
-      connectButton.textContent = 'Retry';
-      connectButton.disabled = false;
-    }
-  });
-
-  // Add click handler for OAuth button (uses backend OAuth)
-  oauthButton.addEventListener('click', async () => {
-    try {
-      oauthButton.textContent = 'OAuth...';
-      oauthButton.disabled = true;
       
       // Open backend OAuth in popup
       const authUrl = 'https://cal9000.onrender.com/auth/google';
@@ -592,13 +577,15 @@ function createPopup() {
         throw new Error('Popup blocked. Please allow popups for this site.');
       }
 
-      // Listen for auth success
-      const authPromise = new Promise((resolve, reject) => {
+      // Wait for authentication to complete
+      await new Promise((resolve, reject) => {
         let resolved = false;
+        
+        console.log('🎯 Starting auth flow, waiting for success...');
         
         const checkClosed = setInterval(() => {
           if (popup.closed && !resolved) {
-            // Check localStorage immediately when popup closes
+            console.log('🔍 Popup closed, checking localStorage...');
             const authSuccess = localStorage.getItem('calendar_auth_success');
             if (authSuccess) {
               console.log('✅ Found auth success in localStorage after popup closed');
@@ -611,16 +598,16 @@ function createPopup() {
               localStorage.removeItem('calendar_auth_success');
               localStorage.setItem('backend_auth_token', authData.accessToken);
               localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
-              
               resolve(authData);
             } else {
+              console.log('❌ No auth success found, rejecting');
               clearInterval(checkClosed);
               clearInterval(checkStorage);
               window.removeEventListener('message', messageHandler);
               reject(new Error('Authentication window was closed'));
             }
           }
-        }, 250); // Reduced to 250ms for faster detection
+        }, 250);
 
         // Listen for postMessage from auth success page
         const messageHandler = (event) => {
@@ -654,7 +641,7 @@ function createPopup() {
           if (!resolved) {
             const authSuccess = localStorage.getItem('calendar_auth_success');
             if (authSuccess) {
-              console.log('✅ Found auth success in localStorage');
+              console.log('✅ Found auth success in localStorage (periodic check)');
               resolved = true;
               clearInterval(checkClosed);
               clearInterval(checkStorage);
@@ -662,18 +649,18 @@ function createPopup() {
               if (!popup.closed) popup.close();
               
               const authData = JSON.parse(authSuccess);
-              localStorage.removeItem('calendar_auth_success'); // Clean up
+              localStorage.removeItem('calendar_auth_success');
               localStorage.setItem('backend_auth_token', authData.accessToken);
               localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
               
               resolve(authData);
             }
           }
-        }, 250); // Reduced to 250ms for faster detection
+        }, 250);
         
-        // Timeout after 5 minutes
         setTimeout(() => {
           if (!resolved) {
+            console.log('⏰ Authentication timeout');
             clearInterval(checkClosed);
             clearInterval(checkStorage);
             window.removeEventListener('message', messageHandler);
@@ -682,25 +669,23 @@ function createPopup() {
           }
         }, 300000);
       });
-
-      const authData = await authPromise;
       
-      connectionStatus.textContent = `Google Calendar: Connected ✓ (${authData.user.email})`;
+      connectionStatus.textContent = 'Google Calendar: Connected ✓';
       connectionStatus.style.color = '#28a745';
       buttonContainer.style.display = 'none';
       console.log('✅ Successfully connected via backend OAuth');
-      
     } catch (error) {
-      console.error('Backend OAuth flow failed:', error);
-      connectionStatus.textContent = 'Google Calendar: OAuth failed';
+      console.error('Failed to connect to Google Calendar:', error);
+      connectionStatus.textContent = 'Google Calendar: Connection failed';
       connectionStatus.style.color = '#dc3545';
-      oauthButton.textContent = 'OAuth';
-      oauthButton.disabled = false;
+      connectButton.textContent = 'Connect';
+      connectButton.disabled = false;
     }
   });
 
+
+
   buttonContainer.appendChild(connectButton);
-  buttonContainer.appendChild(oauthButton);
   
   connectionContainer.appendChild(connectionStatus);
   connectionContainer.appendChild(buttonContainer);

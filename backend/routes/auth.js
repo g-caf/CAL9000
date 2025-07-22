@@ -55,19 +55,34 @@ router.get('/success', (req, res) => {
         The extension should automatically detect the successful authentication.
       </div>
       <script>
-        // Store auth data for extension to pick up
+        console.log('🎯 Auth success page loaded');
+        console.log('Token data:', ${JSON.stringify(token)});
+        
+        // Store auth data for extension to pick up (try both windows)
         localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+        if (window.opener) {
+          try {
+            window.opener.localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+            console.log('✅ Set localStorage in opener window');
+          } catch (e) {
+            console.log('❌ Could not set localStorage in opener:', e);
+          }
+        }
         
         // Send postMessage to parent window
         if (window.opener) {
+          console.log('📤 Sending postMessage to opener');
           window.opener.postMessage({
             type: 'GOOGLE_AUTH_SUCCESS',
             data: ${JSON.stringify(token)}
           }, '*');
+        } else {
+          console.log('❌ No window.opener found');
         }
         
         // Give extension time to detect success before auto-closing
         setTimeout(() => {
+          console.log('🕒 Timeout reached, sending final message and closing');
           if (window.opener) {
             window.opener.postMessage({
               type: 'GOOGLE_AUTH_SUCCESS',
