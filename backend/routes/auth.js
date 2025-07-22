@@ -20,7 +20,7 @@ router.get('/google/callback',
     console.log('✅ OAuth callback successful for:', req.user.email);
     
     // For Chrome extension, we'll redirect to a success page that can communicate back
-    res.redirect(`/auth/success?token=${encodeURIComponent(JSON.stringify({
+    const authData = {
       accessToken: req.user.accessToken,
       user: {
         id: req.user.id,
@@ -28,7 +28,11 @@ router.get('/google/callback',
         name: req.user.name,
         picture: req.user.picture
       }
-    }))}`);
+    };
+    
+    // Use URL fragment (hash) instead of query param for better security
+    const encodedData = encodeURIComponent(JSON.stringify(authData));
+    res.redirect(`/auth/success#token=${encodedData}`);
   }
 );
 
@@ -38,7 +42,7 @@ router.get('/success', (req, res) => {
   res.setHeader('X-Frame-Options', 'ALLOWALL');
   res.setHeader('Content-Security-Policy', "frame-ancestors *; script-src 'unsafe-inline' *; object-src 'none';");
   
-  const token = req.query.token;
+  // Token data will be in URL fragment, handled by client-side JS
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -57,23 +61,51 @@ router.get('/success', (req, res) => {
         You can now close this window and return to your extension.
         <br><br>
         The extension should automatically detect the successful authentication.
+        <br><br>
+        <button id="close-btn" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+          Close Window
+        </button>
       </div>
       <script>
         console.log('🎯 Auth success page loaded');
-        console.log('Token data:', ${JSON.stringify(token)});
+        
+        // Extract token data from URL fragment
+        const fragment = window.location.hash.substring(1);
+        const params = new URLSearchParams(fragment);
+        const tokenParam = params.get('token');
+        
+        if (!tokenParam) {
+          console.error('❌ No token found in URL fragment');
+          return;
+        }
+        
+        let tokenData;
+        try {
+          tokenData = JSON.parse(decodeURIComponent(tokenParam));
+          console.log('✅ Token data extracted:', tokenData);
+        } catch (e) {
+          console.error('❌ Failed to parse token data:', e);
+          return;
+        }
         
         // Generate unique session ID for this auth attempt
         const sessionId = 'auth_' + Date.now();
         console.log('Session ID:', sessionId);
         
-        // Store auth data for extension to pick up (multiple strategies)
-        localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+        // Change the URL to include session ID for extension to detect
+        const newUrl = window.location.origin + window.location.pathname + '?success=1&session=' + sessionId;
+        history.replaceState({}, '', newUrl);
+        console.log('🔄 URL changed to:', newUrl);
+        
+        // Store auth data for extension to pick up
+        const authDataStr = JSON.stringify(tokenData);
+        localStorage.setItem('calendar_auth_success', authDataStr);
         localStorage.setItem('calendar_auth_session', sessionId);
         
-        // Try to set in opener window
+        // Try to set in opener window  
         if (window.opener) {
           try {
-            window.opener.localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
+            window.opener.localStorage.setItem('calendar_auth_success', authDataStr);
             window.opener.localStorage.setItem('calendar_auth_session', sessionId);
             console.log('✅ Set localStorage in opener window');
           } catch (e) {
@@ -81,39 +113,35 @@ router.get('/success', (req, res) => {
           }
         }
         
-        // Also try setting in top window (if different)
-        try {
-          if (window.top !== window) {
-            window.top.localStorage.setItem('calendar_auth_success', ${JSON.stringify(token)});
-            window.top.localStorage.setItem('calendar_auth_session', sessionId);
-            console.log('✅ Set localStorage in top window');
-          }
-        } catch (e) {
-          console.log('❌ Could not set localStorage in top window:', e);
-        }
-        
         // Send postMessage to parent window
-        if (window.opener) {
+        if (window.opener && !window.opener.closed) {
           console.log('📤 Sending postMessage to opener');
-          window.opener.postMessage({
-            type: 'GOOGLE_AUTH_SUCCESS',
-            data: ${JSON.stringify(token)}
-          }, '*');
-        } else {
-          console.log('❌ No window.opener found');
-        }
-        
-        // Give extension time to detect success before auto-closing
-        setTimeout(() => {
-          console.log('🕒 Timeout reached, sending final message and closing');
-          if (window.opener) {
+          try {
             window.opener.postMessage({
               type: 'GOOGLE_AUTH_SUCCESS',
-              data: ${JSON.stringify(token)}
+              data: authDataStr,
+              sessionId: sessionId
             }, '*');
+            console.log('✅ PostMessage sent successfully');
+          } catch (e) {
+            console.log('❌ PostMessage failed:', e);
           }
+        } else {
+          console.log('❌ No valid window.opener found');
+        }
+        
+        // Auto-close after showing success message
+        setTimeout(() => {
+          console.log('🕒 Auto-closing window');
           window.close();
-        }, 3000); // Increased to 3 seconds
+        }, 2000);
+        
+        // Also try manual close button
+        document.addEventListener('click', (e) => {
+          if (e.target.id === 'close-btn') {
+            window.close();
+          }
+        });
       </script>
     </body>
     </html>
