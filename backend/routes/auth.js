@@ -14,10 +14,7 @@ router.get('/google', (req, res) => {
   
   console.log('🚀 Starting OAuth for session:', sessionId);
   
-  // Store the session ID in the session for the callback
-  req.session.oauthSessionId = sessionId;
-  
-  // Initiate Google OAuth
+  // Initiate Google OAuth with session ID in state parameter
   passport.authenticate('google', {
     scope: [
       'profile',
@@ -26,7 +23,8 @@ router.get('/google', (req, res) => {
       'https://www.googleapis.com/auth/calendar'
     ],
     accessType: 'offline',
-    prompt: 'consent'
+    prompt: 'consent',
+    state: sessionId  // Pass session ID as state parameter
   })(req, res);
 });
 
@@ -34,9 +32,10 @@ router.get('/google', (req, res) => {
 router.get('/google/callback', 
   passport.authenticate('google', { failureRedirect: '/auth/failure' }),
   (req, res) => {
-    const sessionId = req.session.oauthSessionId;
+    const sessionId = req.query.state;  // Get session ID from state parameter
     console.log('📞 OAuth callback - Session ID:', sessionId);
     console.log('✅ User authenticated:', !!req.user);
+    console.log('🔍 Query params:', req.query);
     
     if (!sessionId) {
       console.log('❌ No session ID in callback');
@@ -59,9 +58,6 @@ router.get('/google/callback',
       });
       
       console.log('💾 Stored auth result for session:', sessionId);
-      
-      // Clear session OAuth ID
-      delete req.session.oauthSessionId;
       
       // Close the popup window
       res.send(`
