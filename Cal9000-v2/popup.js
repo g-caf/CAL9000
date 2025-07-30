@@ -551,9 +551,16 @@ function parseCalendarQuery(message) {
       }
       
       // Handle different pattern match groups
+      const meetingTypes = ['1:1', '1-1', 'one-on-one', 'sync', 'standup', 'check-in', 'checkin'];
+      
       if (match.length >= 3) {
-        // For patterns like "when is [person] meeting with [company]"
-        if (match[1] && !['when', 'what', 'my'].includes(match[1].toLowerCase())) {
+        // Check if match[1] is a meeting type rather than a person name
+        const isMatchMeetingType = meetingTypes.some(type => 
+          match[1]?.toLowerCase().includes(type.toLowerCase())
+        );
+        
+        if (match[1] && !isMatchMeetingType && !['when', 'what', 'my'].includes(match[1].toLowerCase())) {
+          // For patterns like "when is [person] meeting with [company]"
           person = match[1]?.toLowerCase();
           companyName = match[2]?.trim();
         } else {
