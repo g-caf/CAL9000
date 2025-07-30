@@ -1,6 +1,7 @@
 // Simple extension client for backend-heavy OAuth
 let currentSessionId = null;
 let pollInterval = null;
+let lastQueriedPerson = null; // Track the last person asked about for context
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('CAL 9000 Extension loaded');
@@ -409,6 +410,9 @@ async function handleCalendarQuery(message) {
   if (queryInfo.person) {
     console.log('Found person:', queryInfo.person);
     
+    // Store for context in future queries
+    lastQueriedPerson = queryInfo.person;
+    
     // Check if this is an availability question
     if (queryInfo.isAvailabilityCheck) {
       console.log('Availability check detected');
@@ -523,6 +527,14 @@ function parseCalendarQuery(message) {
           break;
         }
       }
+    }
+  }
+  
+  // Use context if no person found but query sounds like it's continuing a conversation
+  if (!person && (message.toLowerCase().includes('what about') || message.toLowerCase().includes('how about'))) {
+    if (lastQueriedPerson) {
+      person = lastQueriedPerson;
+      console.log('Using context - continuing conversation about:', person);
     }
   }
   
