@@ -418,6 +418,10 @@ async function handleCalendarQuery(message) {
       console.log('Availability check detected');
       addMessage(`Checking if ${queryInfo.person} is available...`, 'assistant');
       await checkPersonAvailability(queryInfo);
+    } else if (queryInfo.isCompanyMeetingQuery) {
+      console.log('Company meeting query detected');
+      addMessage(`Looking for ${queryInfo.person}'s meetings with ${queryInfo.companyName}...`, 'assistant');
+      await findCompanyMeeting(queryInfo);
     } else if (queryInfo.isSpecificEventQuery) {
       console.log('Specific event query detected');
       addMessage(`Looking for ${queryInfo.person}'s ${queryInfo.eventType}...`, 'assistant');
@@ -471,6 +475,8 @@ function parseCalendarQuery(message) {
   let dateRange = null;
   let isAvailabilityCheck = false;
   let isSpecificEventQuery = false;
+  let isCompanyMeetingQuery = false;
+  let companyName = null;
   let eventType = null;
   let specificTime = null;
   let timezone = null;
@@ -509,6 +515,28 @@ function parseCalendarQuery(message) {
       person = match[1]?.toLowerCase();  // Extract person from event pattern
       eventType = match[2]?.toLowerCase();
       console.log('Detected specific event query for:', eventType, 'person:', person);
+      break;
+    }
+  }
+  
+  // Check if this is a company meeting query
+  const companyMeetingPatterns = [
+    /(?:when is|when does)\s+([a-zA-Z0-9]+)\s+(?:meeting|meet)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
+    /([a-zA-Z0-9]+)(?:'s|s)?\s+(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
+    /(?:what time is|when is)\s+(?:the\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i
+  ];
+  
+  for (const pattern of companyMeetingPatterns) {
+    const match = message.match(pattern);
+    if (match) {
+      isCompanyMeetingQuery = true;
+      if (match.length >= 3) {
+        person = match[1]?.toLowerCase();
+        companyName = match[2]?.trim();
+      } else {
+        companyName = match[1]?.trim();
+      }
+      console.log('Detected company meeting query for:', companyName, 'person:', person);
       break;
     }
   }
@@ -631,10 +659,15 @@ function parseCalendarQuery(message) {
     }
   }
   
-  // Default to today if no date specified
+  // Default to today if no date specified, or 30 days for company meeting queries
   if (!dateRange) {
-    dateRange = getTodayRange();
-    console.log('Using default date range: today');
+    if (isCompanyMeetingQuery) {
+      dateRange = getNext30DaysRange();
+      console.log('Using default date range for company meeting: next 30 days');
+    } else {
+      dateRange = getTodayRange();
+      console.log('Using default date range: today');
+    }
   }
   
   // If we have specific time, adjust date range to that specific time slot
@@ -659,6 +692,8 @@ function parseCalendarQuery(message) {
     originalMessage: message,
     isAvailabilityCheck,
     isSpecificEventQuery,
+    isCompanyMeetingQuery,
+    companyName,
     eventType,
     specificTime,
     timezone
@@ -679,6 +714,14 @@ function getTodayRange() {
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
+function getNext30DaysRange() {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 30);
   return { start, end };
 }
 
@@ -917,6 +960,131 @@ async function findSpecificEvent(queryInfo) {
     removeThinkingMessage();
     addMessage(`Sorry, I couldn't find ${queryInfo.person}'s ${queryInfo.eventType}. Error: ${error.message}`, 'assistant');
   }
+}
+
+async function findCompanyMeeting(queryInfo) {
+  try {
+    const { calendars } = await chrome.storage.local.get(['calendars']);
+    
+    if (!calendars || !calendars.length) {
+      addMessage('I need to discover your calendars first. Try asking "list calendars"', 'assistant');
+      return;
+    }
+    
+    // Find calendar for the person
+    const targetCalendar = findPersonCalendar(queryInfo.person, calendars);
+    
+    if (!targetCalendar) {
+      const availableNames = getAvailablePersonNames(calendars);
+      addMessage(`I couldn't find a calendar for "${queryInfo.person}". Available people: ${availableNames.join(', ')}`, 'assistant');
+      return;
+    }
+    
+    console.log('Searching for meetings with', queryInfo.companyName, 'for:', targetCalendar.summary);
+    
+    const response = await makeAuthorizedRequest(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
+      `maxResults=50&singleEvents=true&orderBy=startTime&` +
+      `timeMin=${queryInfo.dateRange.start.toISOString()}&timeMax=${queryInfo.dateRange.end.toISOString()}`
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Calendar API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Events found:', data.items?.length || 0);
+    
+    removeThinkingMessage();
+    
+    if (data.items && data.items.length > 0) {
+      // Filter events to find company meetings
+      const matchingEvents = data.items.filter(event => {
+        const title = (event.summary || '').toLowerCase();
+        const companyLower = queryInfo.companyName.toLowerCase();
+        
+        // Check if company name is in the meeting title
+        if (title.includes(companyLower)) {
+          console.log('Found company match in title:', title);
+          return true;
+        }
+        
+        // Check attendee email domains
+        if (event.attendees && event.attendees.length > 0) {
+          const companyDomain = extractCompanyDomain(queryInfo.companyName);
+          const hasCompanyAttendee = event.attendees.some(attendee => {
+            if (attendee.email) {
+              const emailDomain = attendee.email.split('@')[1]?.toLowerCase();
+              return emailDomain && (
+                emailDomain.includes(companyDomain) || 
+                companyDomain.includes(emailDomain.replace('.com', ''))
+              );
+            }
+            return false;
+          });
+          
+          if (hasCompanyAttendee) {
+            console.log('Found company match in attendees:', event.attendees.map(a => a.email));
+            return true;
+          }
+        }
+        
+        return false;
+      });
+      
+      if (matchingEvents.length > 0) {
+        const eventsList = matchingEvents.map(event => {
+          const formattedEvent = formatEvent(event);
+          
+          // Add attendee info for company meetings
+          let attendeeInfo = '';
+          if (event.attendees && event.attendees.length > 1) {
+            const companyAttendees = event.attendees.filter(attendee => 
+              attendee.email && !attendee.email.includes('sourcegraph.com')
+            );
+            if (companyAttendees.length > 0) {
+              const attendeeEmails = companyAttendees.map(a => a.email).join(', ');
+              attendeeInfo = `\n  📧 ${attendeeEmails}`;
+            }
+          }
+          
+          return formattedEvent + attendeeInfo;
+        }).join('\n\n');
+        
+        const calendarOwner = targetCalendar.summary || queryInfo.person;
+        const timeDesc = formatDateRange(queryInfo.dateRange);
+        
+        addMessage(`Found ${matchingEvents.length} meeting(s) with **${queryInfo.companyName}** for **${calendarOwner}** ${timeDesc}:\n\n${eventsList}`, 'assistant');
+      } else {
+        const calendarOwner = targetCalendar.summary || queryInfo.person;
+        const timeDesc = formatDateRange(queryInfo.dateRange);
+        
+        addMessage(`No meetings with **${queryInfo.companyName}** found for **${calendarOwner}** ${timeDesc}.`, 'assistant');
+      }
+    } else {
+      const calendarOwner = targetCalendar.summary || queryInfo.person;
+      const timeDesc = formatDateRange(queryInfo.dateRange);
+      
+      addMessage(`No events found for **${calendarOwner}** ${timeDesc}.`, 'assistant');
+    }
+    
+  } catch (error) {
+    console.error('Error finding company meeting:', error);
+    removeThinkingMessage();
+    addMessage(`Sorry, I couldn't find meetings with ${queryInfo.companyName}. Error: ${error.message}`, 'assistant');
+  }
+}
+
+function extractCompanyDomain(companyName) {
+  // Convert company name to likely domain format
+  const domain = companyName.toLowerCase()
+    .replace(/\s+/g, '')  // Remove spaces
+    .replace(/[^a-z0-9]/g, '')  // Remove special characters
+    .replace(/inc|corp|llc|ltd/g, '');  // Remove common suffixes
+  
+  return domain;
 }
 
 async function checkPersonAvailability(queryInfo) {
