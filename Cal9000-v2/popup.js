@@ -476,6 +476,7 @@ function parseCalendarQuery(message) {
   let isAvailabilityCheck = false;
   let isSpecificEventQuery = false;
   let isCompanyMeetingQuery = false;
+  let isNextMeetingQuery = false; // Single next meeting vs all meetings
   let companyName = null;
   let eventType = null;
   let specificTime = null;
@@ -530,6 +531,22 @@ function parseCalendarQuery(message) {
     const match = message.match(pattern);
     if (match) {
       isCompanyMeetingQuery = true;
+      
+      // Check if this is asking for "next meeting" (singular) vs "meetings" (plural)
+      const nextMeetingPatterns = [
+        /\bnext\s+(?:1:1\s+)?meeting\b/i,
+        /\bmy\s+next\s+(?:1:1\s+)?meeting\b/i,
+        /when\s+is\s+(?:my\s+)?next\b/i
+      ];
+      
+      for (const nextPattern of nextMeetingPatterns) {
+        if (message.match(nextPattern)) {
+          isNextMeetingQuery = true;
+          console.log('Detected "next meeting" query - will return single result');
+          break;
+        }
+      }
+      
       if (match.length >= 3) {
         person = match[1]?.toLowerCase();
         companyName = match[2]?.trim();
@@ -551,7 +568,13 @@ function parseCalendarQuery(message) {
         const candidate = match[1].toLowerCase();
         
         // Skip common words that aren't names (but don't skip sqs, quinn, adrienne)
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'my', 'i', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call'];
+        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'my', 'i', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call', '1', '2', '3', '4', '5'];
+        
+        // Skip single digits/numbers that might be from "1:1", "2:1" etc.
+        if (candidate.match(/^\d+$/)) {
+          console.log('Skipping single digit/number:', candidate);
+          continue;
+        }
         
         if (!skipWords.includes(candidate) && candidate.length >= 2) {
           person = candidate;
@@ -722,6 +745,7 @@ function parseCalendarQuery(message) {
     isAvailabilityCheck,
     isSpecificEventQuery,
     isCompanyMeetingQuery,
+    isNextMeetingQuery,
     companyName,
     eventType,
     specificTime,
@@ -1104,7 +1128,10 @@ async function findMeetingWith(queryInfo) {
       });
       
       if (matchingEvents.length > 0) {
-        const eventsList = matchingEvents.map(event => {
+        // For "next meeting" queries, only return the first (chronologically next) meeting
+        const eventsToShow = queryInfo.isNextMeetingQuery ? [matchingEvents[0]] : matchingEvents;
+        
+        const eventsList = eventsToShow.map(event => {
           const formattedEvent = formatEvent(event);
           
           // Add attendee info for company meetings
@@ -1125,7 +1152,11 @@ async function findMeetingWith(queryInfo) {
         const calendarOwner = targetCalendar.summary || queryInfo.person;
         const timeDesc = formatDateRange(queryInfo.dateRange);
         
-        addMessage(`Found ${matchingEvents.length} meeting(s) with **${queryInfo.companyName}** for **${calendarOwner}** ${timeDesc}:\n\n${eventsList}`, 'assistant');
+        if (queryInfo.isNextMeetingQuery) {
+          addMessage(`Next meeting with **${queryInfo.companyName}** for **${calendarOwner}**:\n\n${eventsList}`, 'assistant');
+        } else {
+          addMessage(`Found ${eventsToShow.length} meeting(s) with **${queryInfo.companyName}** for **${calendarOwner}** ${timeDesc}:\n\n${eventsList}`, 'assistant');
+        }
       } else {
         const calendarOwner = targetCalendar.summary || queryInfo.person;
         const timeDesc = formatDateRange(queryInfo.dateRange);
