@@ -5,7 +5,8 @@
   "description": "Chat with your Google Calendar from anywhere in your browser",
   
   "permissions": [
-    "storage"
+    "storage",
+    "tabs"
   ],
   
   "host_permissions": [

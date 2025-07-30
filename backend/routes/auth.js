@@ -81,12 +81,13 @@ router.get('/google/callback',
       `);
     } else {
       console.log('❌ No access token found');
+      console.log('🔍 User object:', req.user);
       authSessions.set(sessionId, {
         status: 'error',
         error: 'No access token received',
         createdAt: new Date()
       });
-      res.redirect('/auth/failure');
+      res.redirect('/auth/failure?sessionId=' + sessionId + '&reason=no_access_token');
     }
   }
 );
@@ -135,10 +136,57 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000); // Run every 5 minutes
 
+// Token refresh endpoint
+router.post('/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+  
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'Refresh token required' });
+  }
+  
+  console.log('🔄 Refreshing token...');
+  
+  try {
+    const { google } = require('googleapis');
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
+    
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    
+    console.log('✅ Token refreshed successfully');
+    
+    res.json({
+      access_token: credentials.access_token,
+      expires_in: credentials.expiry_date ? Math.floor((credentials.expiry_date - Date.now()) / 1000) : 3600,
+      token_type: 'Bearer'
+    });
+    
+  } catch (error) {
+    console.error('❌ Token refresh failed:', error.message);
+    res.status(401).json({ 
+      error: 'Token refresh failed',
+      details: error.message 
+    });
+  }
+});
+
 // Auth failure endpoint
 router.get('/failure', (req, res) => {
   console.log('❌ Authentication failed');
-  res.status(401).json({ error: 'Authentication failed' });
+  console.log('🔍 Failure query params:', req.query);
+  console.log('🔍 Failure session:', req.session);
+  res.status(401).json({ 
+    error: 'Authentication failed',
+    query: req.query,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Debug endpoint to test auth flow manually
