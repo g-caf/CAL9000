@@ -34,13 +34,12 @@ async function showAuthenticatedUI() {
     }
   });
   
-  // Automatically discover calendars when authenticated
+  // Silently discover calendars when authenticated
   try {
-    addMessage('Setting up your calendars...', 'assistant');
-    await discoverCalendars();
+    await discoverCalendars(false, true); // showDetails=false, silent=true
   } catch (error) {
     console.error('Failed to auto-discover calendars:', error);
-    addMessage('Ready! Ask me about your calendar or type "list calendars" to see available calendars.', 'assistant');
+    // Fail silently - user can manually discover calendars if needed
   }
 }
 
@@ -327,7 +326,7 @@ function addMessage(text, sender) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-async function discoverCalendars(showDetails = false) {
+async function discoverCalendars(showDetails = false, silent = false) {
   try {
     console.log('Discovering calendars...');
     
@@ -346,40 +345,48 @@ async function discoverCalendars(showDetails = false) {
     const data = await response.json();
     console.log('Calendar list data:', data);
     
-    // Remove the "Thinking..." message
-    removeThinkingMessage();
+    // Remove the "Thinking..." message only if not silent
+    if (!silent) {
+      removeThinkingMessage();
+    }
     
     if (data.items && data.items.length > 0) {
       // Store calendar list for future use
       await chrome.storage.local.set({ calendars: data.items });
       console.log('Stored calendar list for future reference');
       
-      if (showDetails) {
-        const calendarsList = data.items.map(calendar => {
-          const name = calendar.summary || 'Unnamed Calendar';
-          const owner = calendar.id;
-          const access = calendar.accessRole || 'unknown';
-          const isPrimary = calendar.primary ? ' (PRIMARY)' : '';
-          const description = calendar.description ? ` - ${calendar.description}` : '';
+      if (!silent) {
+        if (showDetails) {
+          const calendarsList = data.items.map(calendar => {
+            const name = calendar.summary || 'Unnamed Calendar';
+            const owner = calendar.id;
+            const access = calendar.accessRole || 'unknown';
+            const isPrimary = calendar.primary ? ' (PRIMARY)' : '';
+            const description = calendar.description ? ` - ${calendar.description}` : '';
+            
+            return `• **${name}**${isPrimary}\n  📧 ${owner}\n  Access: ${access}${description}`;
+          }).join('\n\n');
           
-          return `• **${name}**${isPrimary}\n  📧 ${owner}\n  Access: ${access}${description}`;
-        }).join('\n\n');
-        
-        addMessage(`I found ${data.items.length} calendars you have access to:\n\n${calendarsList}`, 'assistant');
-      } else {
-        // Just a simple confirmation for auto-discovery
-        const availableNames = getAvailablePersonNames(data.items);
-        addMessage(`Ready! I can access calendars for: ${availableNames.join(', ')}. Ask me about your schedule!`, 'assistant');
+          addMessage(`I found ${data.items.length} calendars you have access to:\n\n${calendarsList}`, 'assistant');
+        } else {
+          // Just a simple confirmation for auto-discovery
+          const availableNames = getAvailablePersonNames(data.items);
+          addMessage(`Ready! I can access calendars for: ${availableNames.join(', ')}. Ask me about your schedule!`, 'assistant');
+        }
       }
       
     } else {
-      addMessage('No calendars found.', 'assistant');
+      if (!silent) {
+        addMessage('No calendars found.', 'assistant');
+      }
     }
     
   } catch (error) {
     console.error('Error discovering calendars:', error);
-    removeThinkingMessage();
-    addMessage(`Sorry, I couldn't discover your calendars. Error: ${error.message}`, 'assistant');
+    if (!silent) {
+      removeThinkingMessage();
+      addMessage(`Sorry, I couldn't discover your calendars. Error: ${error.message}`, 'assistant');
+    }
   }
 }
 
