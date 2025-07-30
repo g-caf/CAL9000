@@ -419,9 +419,9 @@ async function handleCalendarQuery(message) {
       addMessage(`Checking if ${queryInfo.person} is available...`, 'assistant');
       await checkPersonAvailability(queryInfo);
     } else if (queryInfo.isCompanyMeetingQuery) {
-      console.log('Company meeting query detected');
+      console.log('Meeting with person/company query detected');
       addMessage(`Looking for ${queryInfo.person}'s meetings with ${queryInfo.companyName}...`, 'assistant');
-      await findCompanyMeeting(queryInfo);
+      await findMeetingWith(queryInfo);
     } else if (queryInfo.isSpecificEventQuery) {
       console.log('Specific event query detected');
       addMessage(`Looking for ${queryInfo.person}'s ${queryInfo.eventType}...`, 'assistant');
@@ -962,7 +962,7 @@ async function findSpecificEvent(queryInfo) {
   }
 }
 
-async function findCompanyMeeting(queryInfo) {
+async function findMeetingWith(queryInfo) {
   try {
     const { calendars } = await chrome.storage.local.get(['calendars']);
     
@@ -982,6 +982,9 @@ async function findCompanyMeeting(queryInfo) {
     
     console.log('Searching for meetings with', queryInfo.companyName, 'for:', targetCalendar.summary);
     
+    // Determine if this looks like an individual name vs company name
+    const isLikelyIndividual = isIndividualName(queryInfo.companyName);
+    
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
       `maxResults=50&singleEvents=true&orderBy=startTime&` +
@@ -1000,34 +1003,58 @@ async function findCompanyMeeting(queryInfo) {
     removeThinkingMessage();
     
     if (data.items && data.items.length > 0) {
-      // Filter events to find company meetings
+      // Filter events to find meetings with the specified person/company
       const matchingEvents = data.items.filter(event => {
         const title = (event.summary || '').toLowerCase();
-        const companyLower = queryInfo.companyName.toLowerCase();
+        const searchNameLower = queryInfo.companyName.toLowerCase();
         
-        // Check if company name is in the meeting title
-        if (title.includes(companyLower)) {
-          console.log('Found company match in title:', title);
+        // Check if name is in the meeting title
+        if (title.includes(searchNameLower)) {
+          console.log('Found name match in title:', title);
           return true;
         }
         
-        // Check attendee email domains
+        // Check attendees
         if (event.attendees && event.attendees.length > 0) {
-          const companyDomain = extractCompanyDomain(queryInfo.companyName);
-          const hasCompanyAttendee = event.attendees.some(attendee => {
-            if (attendee.email) {
-              const emailDomain = attendee.email.split('@')[1]?.toLowerCase();
-              return emailDomain && (
-                emailDomain.includes(companyDomain) || 
-                companyDomain.includes(emailDomain.replace('.com', ''))
-              );
+          if (isLikelyIndividual) {
+            // For individuals: search attendee names and email addresses directly
+            const hasIndividualAttendee = event.attendees.some(attendee => {
+              if (attendee.email) {
+                const emailLower = attendee.email.toLowerCase();
+                const displayName = (attendee.displayName || '').toLowerCase();
+                
+                // Check if name appears in email or display name
+                return emailLower.includes(searchNameLower) || 
+                       displayName.includes(searchNameLower) ||
+                       searchNameLower.split(' ').some(namePart => 
+                         emailLower.includes(namePart) || displayName.includes(namePart)
+                       );
+              }
+              return false;
+            });
+            
+            if (hasIndividualAttendee) {
+              console.log('Found individual match in attendees:', event.attendees.map(a => a.email || a.displayName));
+              return true;
             }
-            return false;
-          });
-          
-          if (hasCompanyAttendee) {
-            console.log('Found company match in attendees:', event.attendees.map(a => a.email));
-            return true;
+          } else {
+            // For companies: search email domains
+            const companyDomain = extractCompanyDomain(queryInfo.companyName);
+            const hasCompanyAttendee = event.attendees.some(attendee => {
+              if (attendee.email) {
+                const emailDomain = attendee.email.split('@')[1]?.toLowerCase();
+                return emailDomain && (
+                  emailDomain.includes(companyDomain) || 
+                  companyDomain.includes(emailDomain.replace('.com', ''))
+                );
+              }
+              return false;
+            });
+            
+            if (hasCompanyAttendee) {
+              console.log('Found company match in attendees:', event.attendees.map(a => a.email));
+              return true;
+            }
           }
         }
         
@@ -1071,7 +1098,7 @@ async function findCompanyMeeting(queryInfo) {
     }
     
   } catch (error) {
-    console.error('Error finding company meeting:', error);
+    console.error('Error finding meeting:', error);
     removeThinkingMessage();
     addMessage(`Sorry, I couldn't find meetings with ${queryInfo.companyName}. Error: ${error.message}`, 'assistant');
   }
@@ -1085,6 +1112,35 @@ function extractCompanyDomain(companyName) {
     .replace(/inc|corp|llc|ltd/g, '');  // Remove common suffixes
   
   return domain;
+}
+
+function isIndividualName(name) {
+  // Simple heuristics to determine if this looks like an individual vs company name
+  const lowerName = name.toLowerCase();
+  
+  // Company indicators
+  const companyKeywords = ['inc', 'corp', 'llc', 'ltd', 'company', 'group', 'partners', 'capital', 'ventures', 'solutions', 'systems', 'technologies', 'tech', 'labs', 'bank', 'financial', 'consulting'];
+  const hasCompanyKeyword = companyKeywords.some(keyword => lowerName.includes(keyword));
+  
+  // Individual indicators
+  const nameParts = name.trim().split(/\s+/);
+  const isShortName = nameParts.length <= 2; // Most individual names are 1-2 words
+  const hasCommonFirstNames = ['john', 'jane', 'mike', 'sarah', 'david', 'mary', 'chris', 'alex', 'sam', 'carly', 'quinn', 'steve', 'anna', 'ben', 'lisa'].some(commonName => 
+    lowerName.includes(commonName)
+  );
+  
+  // If it has company keywords, likely a company
+  if (hasCompanyKeyword) {
+    return false;
+  }
+  
+  // If it's short and/or has common first names, likely individual
+  if (isShortName || hasCommonFirstNames) {
+    return true;
+  }
+  
+  // Default to individual for ambiguous cases (better to search broadly)
+  return true;
 }
 
 async function checkPersonAvailability(queryInfo) {
