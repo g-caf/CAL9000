@@ -550,8 +550,8 @@ function parseCalendarQuery(message) {
       if (match && match[1]) {
         const candidate = match[1].toLowerCase();
         
-        // Skip common words that aren't names (but don't skip sqs, quinn)
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call'];
+        // Skip common words that aren't names (but don't skip sqs, quinn, adrienne)
+        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'my', 'i', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call'];
         
         if (!skipWords.includes(candidate) && candidate.length >= 2) {
           person = candidate;
@@ -570,13 +570,42 @@ function parseCalendarQuery(message) {
     }
   }
   
+  // Handle personal pronouns and possessives that refer to the authenticated user
+  if (person) {
+    const personalPronouns = ['my', 'me', 'i', 'myself'];
+    if (personalPronouns.includes(person.toLowerCase())) {
+      person = 'adrienne'; // Map to authenticated user
+      console.log(`Mapped personal pronoun to authenticated user: ${person}`);
+    }
+  }
+  
+  // Check for possessive patterns that refer to the user ("my meeting", "my calendar", etc.)
+  const personalPossessivePatterns = [
+    /\bmy\s+(?:meeting|calendar|schedule|events?|availability|next)\b/i,
+    /\bi\s+(?:have|am|meet)/i,
+    /\bam\s+i\b/i,
+    /when\s+is\s+my\b/i,
+    /what\s+is\s+my\b/i
+  ];
+  
+  if (!person) {
+    for (const pattern of personalPossessivePatterns) {
+      if (message.match(pattern)) {
+        person = 'adrienne';
+        console.log('Detected personal possessive pattern, using authenticated user calendar');
+        break;
+      }
+    }
+  }
+  
   // Hardcoded mappings for common names/aliases
   if (person) {
     const personMappings = {
       'sqs': 'sqs',
       'quinn': 'sqs', 
       'sg': 'sqs', // In case SQS gets parsed as 'sg'
-      'quinn slack': 'sqs'
+      'quinn slack': 'sqs',
+      'adrienne': 'adrienne'
     };
     
     if (personMappings[person.toLowerCase()]) {
