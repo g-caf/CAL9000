@@ -53,10 +53,32 @@ router.get('/google/callback',
             }
           }
           
-          // Close immediately
-          setTimeout(() => {
-            window.close();
-          }, 100);
+          // Send message multiple times to ensure delivery
+          let messageCount = 0;
+          const sendMessage = () => {
+            if (window.opener && !window.opener.closed && messageCount < 5) {
+              try {
+                window.opener.postMessage({
+                  type: 'GOOGLE_AUTH_SUCCESS',
+                  data: ${JSON.stringify(JSON.stringify(authData))}
+                }, '*');
+                console.log(\`📤 Message sent \${messageCount + 1}/5\`);
+                messageCount++;
+                setTimeout(sendMessage, 200);
+              } catch (e) {
+                console.error('❌ Failed to send message:', e);
+              }
+            } else {
+              // Close after all messages sent
+              setTimeout(() => {
+                console.log('🔒 Closing popup');
+                window.close();
+              }, 500);
+            }
+          };
+          
+          // Start sending messages
+          sendMessage();
         </script>
       </body>
       </html>
