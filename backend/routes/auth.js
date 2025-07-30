@@ -55,10 +55,17 @@ router.get('/google/callback',
 
 // Token endpoint for extension polling
 router.get('/token', (req, res) => {
+  console.log('🔍 Token endpoint called');
+  console.log('Session ID:', req.sessionID);
+  console.log('Session data:', req.session);
+  console.log('Google tokens:', req.session.googleTokens);
+  
   if (req.session.googleTokens && req.session.googleTokens.accessToken) {
+    console.log('✅ Returning tokens to extension');
     res.json(req.session.googleTokens);
   } else {
-    res.status(401).json({ error: 'Not authenticated' });
+    console.log('❌ No tokens found in session');
+    res.status(401).json({ error: 'Not authenticated', session: req.session });
   }
 });
 

@@ -101,14 +101,23 @@ class CalendarChat {
               credentials: 'include'
             });
             
+            console.log(`📡 Response status: ${response.status}`);
+            
             if (response.ok) {
               const data = await response.json();
-              if (data.access_token) {
+              console.log('📦 Response data:', data);
+              
+              if (data.access_token || data.accessToken) {
                 console.log('✅ Token received!');
                 clearInterval(checkInterval);
                 authPopup.close();
                 resolve(data);
+              } else {
+                console.log('⚠️ No access token in response');
               }
+            } else {
+              const errorText = await response.text();
+              console.log(`❌ Error response: ${response.status} - ${errorText}`);
             }
           } catch (error) {
             console.log('⚠️ Token check failed:', error.message);
