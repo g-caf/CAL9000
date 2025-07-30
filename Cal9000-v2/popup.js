@@ -1512,15 +1512,35 @@ function formatDateRange(dateRange) {
   tomorrow.setDate(today.getDate() + 1);
   
   const startDate = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), dateRange.start.getDate());
+  const endDate = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), dateRange.end.getDate());
   const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const tomorrowDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
   
+  // Calculate the number of days in the range
+  const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Single day ranges
+  if (daysDiff <= 1) {
+    if (startDate.getTime() === todayDate.getTime()) {
+      return 'today';
+    } else if (startDate.getTime() === tomorrowDate.getTime()) {
+      return 'tomorrow';
+    } else {
+      return `on ${startDate.toLocaleDateString()}`;
+    }
+  }
+  
+  // Multi-day ranges
   if (startDate.getTime() === todayDate.getTime()) {
-    return 'today';
-  } else if (startDate.getTime() === tomorrowDate.getTime()) {
-    return 'tomorrow';
+    if (daysDiff >= 30) {
+      return 'over the next 30 days';
+    } else if (daysDiff >= 7) {
+      return `over the next ${daysDiff} days`;
+    } else {
+      return `over the next ${daysDiff} days`;
+    }
   } else {
-    return `on ${startDate.toLocaleDateString()}`;
+    return `from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
   }
 }
 
