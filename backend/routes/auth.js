@@ -31,62 +31,40 @@ router.get('/google/callback',
       }
     };
     
-    // Send minimal auto-closing response
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>Auth Success</title></head>
-      <body>
-        <script>
-          console.log('✅ OAuth successful, closing popup...');
-          
-          // Send success message to extension
-          if (window.opener && !window.opener.closed) {
-            try {
-              window.opener.postMessage({
-                type: 'GOOGLE_AUTH_SUCCESS',
-                data: ${JSON.stringify(JSON.stringify(authData))}
-              }, '*');
-              console.log('📤 Success message sent to extension');
-            } catch (e) {
-              console.error('❌ Failed to send message:', e);
-            }
-          }
-          
-          // Send message multiple times to ensure delivery
-          let messageCount = 0;
-          const sendMessage = () => {
-            if (window.opener && !window.opener.closed && messageCount < 5) {
-              try {
-                window.opener.postMessage({
-                  type: 'GOOGLE_AUTH_SUCCESS',
-                  data: ${JSON.stringify(JSON.stringify(authData))}
-                }, '*');
-                console.log(\`📤 Message sent \${messageCount + 1}/5\`);
-                messageCount++;
-                setTimeout(sendMessage, 200);
-              } catch (e) {
-                console.error('❌ Failed to send message:', e);
-              }
-            } else {
-              // Close after all messages sent
-              setTimeout(() => {
-                console.log('🔒 Closing popup');
-                window.close();
-              }, 500);
-            }
-          };
-          
-          // Start sending messages
-          sendMessage();
-        </script>
-      </body>
-      </html>
-    `);
+    // Redirect to a special URL that the extension can detect
+    const encodedData = encodeURIComponent(JSON.stringify(authData));
+    res.redirect(`https://cal9000.onrender.com/auth/extension-success?data=${encodedData}`);
   }
 );
 
-
+// Extension success detection page
+router.get('/extension-success', (req, res) => {
+  const data = req.query.data;
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head><title>Auth Complete</title></head>
+    <body>
+      <div style="font-family: system-ui; text-align: center; padding: 20px;">
+        <h2 style="color: #28a745;">✅ Authentication Complete</h2>
+        <p>You can close this window.</p>
+      </div>
+      <script>
+        console.log('🎯 Extension success page loaded');
+        
+        // This URL can be detected by the extension
+        console.log('Auth data available in URL params');
+        
+        // Auto-close after 1 second
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      </script>
+    </body>
+    </html>
+  `);
+});
 
 // Authentication failure
 router.get('/failure', (req, res) => {

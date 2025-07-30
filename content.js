@@ -584,6 +584,36 @@ function createPopup() {
         console.log('🎯 Starting auth flow, waiting for success...');
         
         const checkClosed = setInterval(() => {
+          // Check if popup navigated to success URL
+          try {
+            if (popup && !popup.closed) {
+              const popupUrl = popup.location.href;
+              if (popupUrl.includes('/auth/extension-success')) {
+                console.log('🎯 Detected success URL:', popupUrl);
+                const urlParams = new URLSearchParams(popup.location.search);
+                const authDataStr = urlParams.get('data');
+                
+                if (authDataStr) {
+                  console.log('✅ Auth data found in URL');
+                  resolved = true;
+                  clearInterval(checkClosed);
+                  clearInterval(checkStorage);
+                  window.removeEventListener('message', messageHandler);
+                  popup.close();
+                  
+                  const authData = JSON.parse(decodeURIComponent(authDataStr));
+                  localStorage.setItem('backend_auth_token', authData.accessToken);
+                  localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
+                  resolve(authData);
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            // Cross-origin error is expected when popup is on different domain
+            console.log('🔍 Popup URL check (cross-origin expected)');
+          }
+          
           if (popup.closed && !resolved) {
             console.log('🔍 Popup closed, checking localStorage...');
             const authSuccess = localStorage.getItem('calendar_auth_success');
