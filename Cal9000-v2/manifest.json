@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Cal 9000 - Calendar Chat Assistant",
+  "version": "2.0.0",
+  "description": "Chat with your Google Calendar from anywhere in your browser",
+  
+  "permissions": [
+    "storage"
+  ],
+  
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://cal9000.onrender.com/*"
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Cal 9000",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png", 
+    "128": "icon128.png"
+  }
+}

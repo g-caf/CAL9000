@@ -31,39 +31,35 @@ router.get('/google/callback',
       }
     };
     
-    // Redirect to a special URL that the extension can detect
-    const encodedData = encodeURIComponent(JSON.stringify(authData));
-    res.redirect(`https://cal9000.onrender.com/auth/extension-success?data=${encodedData}`);
+    // Store in session for polling approach
+    req.session.googleTokens = authData;
+    
+    // Send simple auto-close page
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Authentication Complete</title></head>
+      <body>
+        <div style="font-family: system-ui; text-align: center; padding: 20px;">
+          <h2 style="color: #28a745;">✅ Authentication Complete!</h2>
+          <p>You can close this window and return to the extension.</p>
+        </div>
+        <script>
+          setTimeout(() => window.close(), 1000);
+        </script>
+      </body>
+      </html>
+    `);
   }
 );
 
-// Extension success detection page
-router.get('/extension-success', (req, res) => {
-  const data = req.query.data;
-  
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head><title>Auth Complete</title></head>
-    <body>
-      <div style="font-family: system-ui; text-align: center; padding: 20px;">
-        <h2 style="color: #28a745;">✅ Authentication Complete</h2>
-        <p>You can close this window.</p>
-      </div>
-      <script>
-        console.log('🎯 Extension success page loaded');
-        
-        // This URL can be detected by the extension
-        console.log('Auth data available in URL params');
-        
-        // Auto-close after 1 second
-        setTimeout(() => {
-          window.close();
-        }, 1000);
-      </script>
-    </body>
-    </html>
-  `);
+// Token endpoint for extension polling
+router.get('/token', (req, res) => {
+  if (req.session.googleTokens && req.session.googleTokens.accessToken) {
+    res.json(req.session.googleTokens);
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
 });
 
 // Authentication failure

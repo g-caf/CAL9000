@@ -150,18 +150,24 @@ class CalendarAPI {
       `;
 
       content.innerHTML = `
-        <h3 style="margin-top: 0;">Connect to Google Calendar</h3>
-        <ol style="font-size: 14px; line-height: 1.5;">
-          <li>Click the link below to open Google OAuth Playground</li>
-          <li>On the left, find "Calendar API v3" and check both boxes</li>
-          <li>Click "Authorize APIs"</li>
-          <li>Sign in and grant permissions</li>
-          <li>Click "Exchange authorization code for tokens"</li>
-          <li>Copy the "Access token" and paste it below</li>
+        <h3 style="margin-top: 0;">🔑 Connect to Google Calendar</h3>
+        <div style="background: #f0f7ff; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px;">
+          <strong>Quick Setup:</strong> Get your access token in ~30 seconds
+        </div>
+        <ol style="font-size: 13px; line-height: 1.6; margin: 15px 0;">
+          <li><strong>Click</strong> → Open OAuth Playground</li>
+          <li><strong>Find</strong> "Calendar API v3" on the left</li>
+          <li><strong>Check</strong> both Calendar boxes ✅</li>
+          <li><strong>Click</strong> "Authorize APIs" → Sign in</li>
+          <li><strong>Click</strong> "Exchange authorization code for tokens"</li>
+          <li><strong>Copy</strong> the "Access token" → Paste below</li>
         </ol>
-        <p><a href="https://developers.google.com/oauthplayground/" target="_blank" style="color: #4285f4;">
-          → Open OAuth Playground
-        </a></p>
+        <p style="text-align: center; margin: 15px 0;">
+          <a href="https://developers.google.com/oauthplayground/" target="_blank" 
+             style="background: #4285f4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 500;">
+          🚀 Open OAuth Playground
+          </a>
+        </p>
         <div style="margin: 15px 0;">
           <label style="display: block; margin-bottom: 5px; font-weight: 500;">Access Token:</label>
           <input type="text" id="manual-token" placeholder="Paste access token here..." 
