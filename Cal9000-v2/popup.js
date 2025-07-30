@@ -966,7 +966,7 @@ async function findSpecificEvent(queryInfo) {
     
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
-      `maxResults=50&singleEvents=true&orderBy=startTime&` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
       `timeMin=${queryInfo.dateRange.start.toISOString()}&timeMax=${queryInfo.dateRange.end.toISOString()}`
     );
     
@@ -1060,7 +1060,7 @@ async function findMeetingWith(queryInfo) {
     
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
-      `maxResults=50&singleEvents=true&orderBy=startTime&` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
       `timeMin=${queryInfo.dateRange.start.toISOString()}&timeMax=${queryInfo.dateRange.end.toISOString()}`
     );
     
@@ -1077,9 +1077,19 @@ async function findMeetingWith(queryInfo) {
     if (data.items && data.items.length > 0) {
       console.log('Event titles found:');
       data.items.forEach((event, index) => {
-        console.log(`${index + 1}. "${event.summary || 'No title'}" - ${event.start?.dateTime || event.start?.date}`);
+        const eventDate = event.start?.dateTime || event.start?.date;
+        console.log(`${index + 1}. "${event.summary || 'No title'}" - ${eventDate}`);
         if (event.attendees) {
           console.log(`   Attendees: ${event.attendees.map(a => a.email || a.displayName).join(', ')}`);
+        }
+        
+        // Special logging for potential Morgan Stanley meetings
+        const title = (event.summary || '').toLowerCase();
+        const attendeeEmails = event.attendees ? event.attendees.map(a => a.email || '').join(' ') : '';
+        if (title.includes('morgan') || title.includes('stanley') || title.includes('ms') || 
+            attendeeEmails.includes('morgan') || attendeeEmails.includes('stanley') || 
+            attendeeEmails.includes('morganstanley') || attendeeEmails.includes('ms.com')) {
+          console.log('🎯 POTENTIAL MORGAN STANLEY MATCH:', event.summary, 'Attendees:', attendeeEmails);
         }
       });
     }
@@ -1089,6 +1099,7 @@ async function findMeetingWith(queryInfo) {
     if (data.items && data.items.length > 0) {
       // Filter events to find meetings with the specified person/company
       const now = new Date();
+      console.log('🔍 Starting to filter', data.items.length, 'events for:', queryInfo.companyName);
       const matchingEvents = data.items.filter(event => {
         // First, check if the event is actually in the future
         let eventTime;
@@ -1317,7 +1328,7 @@ async function checkPersonAvailability(queryInfo) {
     
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
-      `maxResults=50&singleEvents=true&orderBy=startTime&` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
       `timeMin=${queryInfo.dateRange.start.toISOString()}&timeMax=${queryInfo.dateRange.end.toISOString()}`
     );
     
@@ -1499,7 +1510,7 @@ async function getPersonCalendarEvents(queryInfo) {
     
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
-      `maxResults=50&singleEvents=true&orderBy=startTime&` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
       `timeMin=${queryInfo.dateRange.start.toISOString()}&timeMax=${queryInfo.dateRange.end.toISOString()}`
     );
     
@@ -1707,7 +1718,7 @@ async function getCalendarEvents(query) {
     
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-      `maxResults=50&singleEvents=true&orderBy=startTime&` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
       `timeMin=${weekAgo.toISOString()}&timeMax=${monthFromNow.toISOString()}`
     );
     
