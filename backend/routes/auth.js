@@ -31,8 +31,24 @@ router.get('/google/callback',
       }
     };
     
-    // Store in session for polling approach
-    req.session.googleTokens = authData;
+    // Generate a temporary token ID for cross-session sharing
+    const tempTokenId = 'auth_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    // Store tokens temporarily in memory (you'd use Redis in production)
+    global.tempTokens = global.tempTokens || {};
+    global.tempTokens[tempTokenId] = {
+      ...authData,
+      createdAt: Date.now()
+    };
+    
+    // Clean up old tokens (older than 10 minutes)
+    Object.keys(global.tempTokens).forEach(id => {
+      if (Date.now() - global.tempTokens[id].createdAt > 10 * 60 * 1000) {
+        delete global.tempTokens[id];
+      }
+    });
+    
+    console.log('🔑 Stored temp token:', tempTokenId);
     
     // Send simple auto-close page
     res.send(`
@@ -46,6 +62,11 @@ router.get('/google/callback',
         </div>
         <script>
           console.log('🎯 Auth success page loaded, will close in 3 seconds');
+          
+          // Store temp token ID in localStorage for extension to find
+          localStorage.setItem('cal9000_temp_token', '${tempTokenId}');
+          console.log('💾 Stored temp token ID for extension:', '${tempTokenId}');
+          
           setTimeout(() => {
             console.log('🔒 Closing auth popup');
             window.close();
@@ -58,18 +79,27 @@ router.get('/google/callback',
 );
 
 // Token endpoint for extension polling
-router.get('/token', (req, res) => {
+router.get('/token/:tempTokenId?', (req, res) => {
   console.log('🔍 Token endpoint called');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session data:', req.session);
-  console.log('Google tokens:', req.session.googleTokens);
+  const tempTokenId = req.params.tempTokenId || req.query.tempTokenId;
+  console.log('🔑 Looking for temp token:', tempTokenId);
+  console.log('📦 Available temp tokens:', Object.keys(global.tempTokens || {}));
   
-  if (req.session.googleTokens && req.session.googleTokens.accessToken) {
-    console.log('✅ Returning tokens to extension');
-    res.json(req.session.googleTokens);
+  if (tempTokenId && global.tempTokens && global.tempTokens[tempTokenId]) {
+    console.log('✅ Found temp token, returning to extension');
+    const tokenData = global.tempTokens[tempTokenId];
+    
+    // Clean up used token
+    delete global.tempTokens[tempTokenId];
+    
+    res.json(tokenData);
   } else {
-    console.log('❌ No tokens found in session');
-    res.status(401).json({ error: 'Not authenticated', session: req.session });
+    console.log('❌ No temp token found');
+    res.status(401).json({ 
+      error: 'Not authenticated', 
+      tempTokenId,
+      availableTokens: Object.keys(global.tempTokens || {})
+    });
   }
 });
 

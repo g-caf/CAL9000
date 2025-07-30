@@ -104,7 +104,25 @@ class CalendarChat {
           
           try {
             console.log(`🔄 Checking for token (attempt ${attempts}/${maxAttempts})...`);
-            const response = await fetch('https://cal9000.onrender.com/auth/token', {
+            
+            // First try to get temp token ID from popup's localStorage
+            let tempTokenId = null;
+            try {
+              // Try to access popup's localStorage
+              tempTokenId = authPopup.localStorage?.getItem('cal9000_temp_token');
+              console.log('🔍 Found temp token ID in popup:', tempTokenId);
+            } catch (e) {
+              console.log('⚠️ Cannot access popup localStorage (cross-origin expected)');
+            }
+            
+            // Build the request URL
+            const tokenUrl = tempTokenId 
+              ? `https://cal9000.onrender.com/auth/token/${tempTokenId}`
+              : 'https://cal9000.onrender.com/auth/token';
+            
+            console.log('📡 Requesting:', tokenUrl);
+            
+            const response = await fetch(tokenUrl, {
               credentials: 'include'
             });
             
