@@ -70,6 +70,10 @@ class CalendarChat {
         throw new Error('Popup blocked. Please allow popups for this site.');
       }
       
+      console.log('📝 Popup opened successfully');
+      console.log('🔍 Initial popup state - closed:', authPopup.closed);
+      console.log('🔍 Popup object:', authPopup);
+      
       console.log('📝 Polling for authentication token...');
       
       // Poll for token
@@ -81,11 +85,14 @@ class CalendarChat {
           attempts++;
           
           // Check if popup was closed manually
-          if (authPopup.closed) {
-            clearInterval(checkInterval);
-            reject(new Error('Authentication window was closed'));
-            return;
-          }
+          console.log(`🔍 Popup state check - closed: ${authPopup.closed}`);
+          // TEMP: Skip popup.closed check due to cross-origin issues
+          // if (authPopup.closed) {
+          //   console.log('❌ Popup detected as closed, stopping polling');
+          //   clearInterval(checkInterval);
+          //   reject(new Error('Authentication window was closed'));
+          //   return;
+          // }
           
           // Timeout after max attempts
           if (attempts >= maxAttempts) {
