@@ -115,8 +115,8 @@ router.get('/status/:sessionId', (req, res) => {
     console.log('✅ Returning successful auth data');
     res.json({
       status: 'success',
-      accessToken: authData.accessToken,
-      refreshToken: authData.refreshToken,
+      access_token: authData.accessToken,  // Use snake_case for compatibility
+      refresh_token: authData.refreshToken,
       user: authData.user
     });
   } else {
@@ -143,6 +143,19 @@ setInterval(() => {
 router.get('/failure', (req, res) => {
   console.log('❌ Authentication failed');
   res.status(401).json({ error: 'Authentication failed' });
+});
+
+// Debug endpoint to test auth flow manually
+router.get('/debug/:sessionId?', (req, res) => {
+  const sessionId = req.params.sessionId || 'test123';
+  console.log('🐛 Debug endpoint - available sessions:', Array.from(authSessions.keys()));
+  
+  res.json({
+    requestedSession: sessionId,
+    availableSessions: Array.from(authSessions.keys()),
+    sessionData: authSessions.has(sessionId) ? 'EXISTS' : 'NOT_FOUND',
+    totalSessions: authSessions.size
+  });
 });
 
 // Legacy token endpoint (for backward compatibility)
