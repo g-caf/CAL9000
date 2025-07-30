@@ -154,7 +154,13 @@ router.get('/debug/:sessionId?', (req, res) => {
     requestedSession: sessionId,
     availableSessions: Array.from(authSessions.keys()),
     sessionData: authSessions.has(sessionId) ? 'EXISTS' : 'NOT_FOUND',
-    totalSessions: authSessions.size
+    totalSessions: authSessions.size,
+    environment: {
+      hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      hasRedirectUri: !!process.env.GOOGLE_REDIRECT_URI,
+      redirectUri: process.env.GOOGLE_REDIRECT_URI
+    }
   });
 });
 
