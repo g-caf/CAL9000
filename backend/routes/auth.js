@@ -9,7 +9,9 @@ router.get('/google', passport.authenticate('google', {
     'email',
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/calendar'
-  ]
+  ],
+  accessType: 'offline',
+  prompt: 'consent' // Force consent screen every time
 }));
 
 // Google OAuth callback
