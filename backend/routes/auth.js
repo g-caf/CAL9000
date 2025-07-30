@@ -45,7 +45,11 @@ router.get('/google/callback',
           <p>You can close this window and return to the extension.</p>
         </div>
         <script>
-          setTimeout(() => window.close(), 1000);
+          console.log('🎯 Auth success page loaded, will close in 3 seconds');
+          setTimeout(() => {
+            console.log('🔒 Closing auth popup');
+            window.close();
+          }, 3000);
         </script>
       </body>
       </html>
