@@ -470,13 +470,18 @@ function parseCalendarQuery(message) {
   // Check if this is an availability question
   const availabilityPatterns = [
     /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)/i,
-    /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)\s+(?:at|on)/i
+    /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)\s+(?:at|on)/i,
+    /(?:what is|what's)\s+([a-zA-Z0-9]+)(?:'s|s)?\s+(?:availability)/i
   ];
   
   for (const pattern of availabilityPatterns) {
     const match = message.match(pattern);
     if (match) {
       isAvailabilityCheck = true;
+      if (match[1] && !person) {
+        person = match[1].toLowerCase();
+        console.log('Found person from availability pattern:', person);
+      }
       console.log('Detected availability check');
       break;
     }
@@ -510,7 +515,7 @@ function parseCalendarQuery(message) {
         const candidate = match[1].toLowerCase();
         
         // Skip common words that aren't names
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy'];
+        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability'];
         
         if (!skipWords.includes(candidate) && candidate.length >= 2) {
           person = candidate;
