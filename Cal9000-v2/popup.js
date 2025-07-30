@@ -524,7 +524,10 @@ function parseCalendarQuery(message) {
   const companyMeetingPatterns = [
     /(?:when is|when does)\s+([a-zA-Z0-9]+)\s+(?:meeting|meet)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
     /([a-zA-Z0-9]+)(?:'s|s)?\s+(?:next\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
-    /(?:what time is|when is)\s+(?:the\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i
+    /(?:what time is|when is)\s+(?:the\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
+    // Patterns for "1:1", "one-on-one", and other meeting types
+    /(?:when is|what time is)\s+(?:my\s+)?(?:next\s+)?(1:1|one.on.one|sync|standup|check.in)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
+    /(?:my\s+)?(?:next\s+)?(1:1|one.on.one|sync|standup|check.in)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i
   ];
   
   for (const pattern of companyMeetingPatterns) {
@@ -547,9 +550,16 @@ function parseCalendarQuery(message) {
         }
       }
       
+      // Handle different pattern match groups
       if (match.length >= 3) {
-        person = match[1]?.toLowerCase();
-        companyName = match[2]?.trim();
+        // For patterns like "when is [person] meeting with [company]"
+        if (match[1] && !['when', 'what', 'my'].includes(match[1].toLowerCase())) {
+          person = match[1]?.toLowerCase();
+          companyName = match[2]?.trim();
+        } else {
+          // For patterns like "when is my [meetingType] with [company]" 
+          companyName = match[2]?.trim();
+        }
       } else {
         companyName = match[1]?.trim();
       }
