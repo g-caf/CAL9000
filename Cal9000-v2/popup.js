@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const savedToken = await chrome.storage.local.get(['accessToken']);
   if (savedToken.accessToken) {
     console.log('Found saved token');
-    showAuthenticatedUI();
+    await showAuthenticatedUI();
   } else {
     showUnauthenticatedUI();
   }
@@ -22,7 +22,7 @@ function showUnauthenticatedUI() {
   document.getElementById('auth-button').onclick = startAuthentication;
 }
 
-function showAuthenticatedUI() {
+async function showAuthenticatedUI() {
   document.getElementById('auth-section').style.display = 'none';
   document.getElementById('chat-section').classList.remove('hidden');
   
@@ -33,6 +33,15 @@ function showAuthenticatedUI() {
       sendMessage();
     }
   });
+  
+  // Automatically discover calendars when authenticated
+  try {
+    addMessage('Setting up your calendars...', 'assistant');
+    await discoverCalendars();
+  } catch (error) {
+    console.error('Failed to auto-discover calendars:', error);
+    addMessage('Ready! Ask me about your calendar or type "list calendars" to see available calendars.', 'assistant');
+  }
 }
 
 async function startAuthentication() {
@@ -123,7 +132,7 @@ function startPolling() {
             });
             
             // Update UI immediately
-            showAuthenticatedUI();
+            await showAuthenticatedUI();
             resolve(true);
           } else if (data.status === 'error') {
             console.error('Authentication error:', data.error);
@@ -293,7 +302,7 @@ async function sendMessage() {
     
     // Check for special commands
     if (message.toLowerCase().includes('calendars') || message.toLowerCase().includes('list calendars')) {
-      await discoverCalendars();
+      await discoverCalendars(true); // Show details when manually requested
     } else {
       // Parse the query for person-specific requests
       await handleCalendarQuery(message);
@@ -318,7 +327,7 @@ function addMessage(text, sender) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-async function discoverCalendars() {
+async function discoverCalendars(showDetails = false) {
   try {
     console.log('Discovering calendars...');
     
@@ -341,21 +350,27 @@ async function discoverCalendars() {
     removeThinkingMessage();
     
     if (data.items && data.items.length > 0) {
-      const calendarsList = data.items.map(calendar => {
-        const name = calendar.summary || 'Unnamed Calendar';
-        const owner = calendar.id;
-        const access = calendar.accessRole || 'unknown';
-        const isPrimary = calendar.primary ? ' (PRIMARY)' : '';
-        const description = calendar.description ? ` - ${calendar.description}` : '';
-        
-        return `• **${name}**${isPrimary}\n  📧 ${owner}\n  Access: ${access}${description}`;
-      }).join('\n\n');
-      
-      addMessage(`I found ${data.items.length} calendars you have access to:\n\n${calendarsList}`, 'assistant');
-      
       // Store calendar list for future use
       await chrome.storage.local.set({ calendars: data.items });
       console.log('Stored calendar list for future reference');
+      
+      if (showDetails) {
+        const calendarsList = data.items.map(calendar => {
+          const name = calendar.summary || 'Unnamed Calendar';
+          const owner = calendar.id;
+          const access = calendar.accessRole || 'unknown';
+          const isPrimary = calendar.primary ? ' (PRIMARY)' : '';
+          const description = calendar.description ? ` - ${calendar.description}` : '';
+          
+          return `• **${name}**${isPrimary}\n  📧 ${owner}\n  Access: ${access}${description}`;
+        }).join('\n\n');
+        
+        addMessage(`I found ${data.items.length} calendars you have access to:\n\n${calendarsList}`, 'assistant');
+      } else {
+        // Just a simple confirmation for auto-discovery
+        const availableNames = getAvailablePersonNames(data.items);
+        addMessage(`Ready! I can access calendars for: ${availableNames.join(', ')}. Ask me about your schedule!`, 'assistant');
+      }
       
     } else {
       addMessage('No calendars found.', 'assistant');
