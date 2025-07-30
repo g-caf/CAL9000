@@ -139,7 +139,17 @@ router.get('/success', (req, res) => {
         // Also try manual close button
         document.addEventListener('click', (e) => {
           if (e.target.id === 'close-btn') {
-            window.close();
+            console.log('🔘 Close button clicked');
+            // Try multiple ways to close
+            try {
+              window.close();
+            } catch (err) {
+              console.log('❌ window.close() failed:', err);
+              // Try to close via opener
+              if (window.opener) {
+                window.opener.postMessage({ type: 'CLOSE_POPUP' }, '*');
+              }
+            }
           }
         });
       </script>

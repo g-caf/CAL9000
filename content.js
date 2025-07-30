@@ -631,6 +631,11 @@ function createPopup() {
             localStorage.setItem('backend_user_data', JSON.stringify(authData.user));
             
             resolve(authData);
+          } else if (event.data.type === 'CLOSE_POPUP') {
+            console.log('🔘 Received close popup request');
+            if (!popup.closed) {
+              popup.close();
+            }
           }
         };
 
