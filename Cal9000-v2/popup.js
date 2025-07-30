@@ -1052,6 +1052,7 @@ async function findMeetingWith(queryInfo) {
     
     console.log('Searching for meetings with', queryInfo.companyName, 'for:', targetCalendar.summary);
     console.log('Date range:', queryInfo.dateRange.start.toISOString(), 'to', queryInfo.dateRange.end.toISOString());
+    console.log('Today is:', new Date().toISOString());
     
     // Determine if this looks like an individual name vs company name
     const isLikelyIndividual = isIndividualName(queryInfo.companyName);
@@ -1123,9 +1124,23 @@ async function findMeetingWith(queryInfo) {
           }
         }
         
-        // Check if name is in the meeting title
-        if (title.includes(searchNameLower)) {
-          console.log('Found name match in title:', title);
+        // Check if name is in the meeting title (try multiple variations)
+        const nameVariations = [
+          searchNameLower,
+          searchNameLower.replace(/\s+/g, ''), // Remove spaces: "morgan stanley" → "morganstanley"
+          searchNameLower.replace(/\s+/g, '-'), // Replace spaces with dash: "morgan stanley" → "morgan-stanley"
+          searchNameLower.split(' ')[0] // First word only: "morgan stanley" → "morgan"
+        ];
+        
+        const titleMatch = nameVariations.some(variation => {
+          if (title.includes(variation)) {
+            console.log('Found name match in title:', title, 'matched variation:', variation);
+            return true;
+          }
+          return false;
+        });
+        
+        if (titleMatch) {
           return true;
         }
         
@@ -1153,21 +1168,36 @@ async function findMeetingWith(queryInfo) {
               return true;
             }
           } else {
-            // For companies: search email domains
+            // For companies: search email domains and attendee names
             const companyDomain = extractCompanyDomain(queryInfo.companyName);
             const hasCompanyAttendee = event.attendees.some(attendee => {
               if (attendee.email) {
                 const emailDomain = attendee.email.split('@')[1]?.toLowerCase();
-                return emailDomain && (
+                const emailFull = attendee.email.toLowerCase();
+                const displayName = (attendee.displayName || '').toLowerCase();
+                
+                // Check domain matching
+                const domainMatch = emailDomain && (
                   emailDomain.includes(companyDomain) || 
-                  companyDomain.includes(emailDomain.replace('.com', ''))
+                  companyDomain.includes(emailDomain.replace('.com', '')) ||
+                  emailDomain.includes('morganstanley') || // Specific case for Morgan Stanley
+                  emailDomain.includes('ms.com')
                 );
+                
+                // Check if company name appears in email or display name
+                const nameMatch = nameVariations.some(variation => 
+                  emailFull.includes(variation) || displayName.includes(variation)
+                );
+                
+                if (domainMatch || nameMatch) {
+                  console.log('Found company match in attendee:', attendee.email, attendee.displayName, 'domain:', emailDomain);
+                  return true;
+                }
               }
               return false;
             });
             
             if (hasCompanyAttendee) {
-              console.log('Found company match in attendees:', event.attendees.map(a => a.email));
               return true;
             }
           }
