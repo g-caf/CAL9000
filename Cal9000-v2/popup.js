@@ -522,7 +522,7 @@ function parseCalendarQuery(message) {
   // Check if this is a company meeting query
   const companyMeetingPatterns = [
     /(?:when is|when does)\s+([a-zA-Z0-9]+)\s+(?:meeting|meet)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
-    /([a-zA-Z0-9]+)(?:'s|s)?\s+(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
+    /([a-zA-Z0-9]+)(?:'s|s)?\s+(?:next\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
     /(?:what time is|when is)\s+(?:the\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i
   ];
   
@@ -551,7 +551,7 @@ function parseCalendarQuery(message) {
         const candidate = match[1].toLowerCase();
         
         // Skip common words that aren't names (but don't skip sqs, quinn)
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call'];
         
         if (!skipWords.includes(candidate) && candidate.length >= 2) {
           person = candidate;
@@ -981,9 +981,11 @@ async function findMeetingWith(queryInfo) {
     }
     
     console.log('Searching for meetings with', queryInfo.companyName, 'for:', targetCalendar.summary);
+    console.log('Date range:', queryInfo.dateRange.start.toISOString(), 'to', queryInfo.dateRange.end.toISOString());
     
     // Determine if this looks like an individual name vs company name
     const isLikelyIndividual = isIndividualName(queryInfo.companyName);
+    console.log('Detected as individual:', isLikelyIndividual);
     
     const response = await makeAuthorizedRequest(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
@@ -999,6 +1001,17 @@ async function findMeetingWith(queryInfo) {
     
     const data = await response.json();
     console.log('Events found:', data.items?.length || 0);
+    
+    // Debug: Log all event titles for inspection
+    if (data.items && data.items.length > 0) {
+      console.log('Event titles found:');
+      data.items.forEach((event, index) => {
+        console.log(`${index + 1}. "${event.summary || 'No title'}" - ${event.start?.dateTime || event.start?.date}`);
+        if (event.attendees) {
+          console.log(`   Attendees: ${event.attendees.map(a => a.email || a.displayName).join(', ')}`);
+        }
+      });
+    }
     
     removeThinkingMessage();
     
