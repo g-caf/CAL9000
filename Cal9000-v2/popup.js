@@ -4,7 +4,7 @@ let pollInterval = null;
 let lastQueriedPerson = null; // Track the last person asked about for context
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('CAL 9000 Extension loaded');
+  console.log('CAL 9000 Extension loaded - v1.1');
   
   // Check if already authenticated
   const savedToken = await chrome.storage.local.get(['accessToken']);
