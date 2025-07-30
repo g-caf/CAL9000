@@ -1087,9 +1087,41 @@ async function findMeetingWith(queryInfo) {
     
     if (data.items && data.items.length > 0) {
       // Filter events to find meetings with the specified person/company
+      const now = new Date();
       const matchingEvents = data.items.filter(event => {
+        // First, check if the event is actually in the future
+        let eventTime;
+        if (event.start.dateTime) {
+          eventTime = new Date(event.start.dateTime);
+        } else if (event.start.date) {
+          eventTime = new Date(event.start.date);
+        }
+        
+        if (eventTime && eventTime <= now) {
+          console.log('Skipping past event:', event.summary, eventTime);
+          return false;
+        }
+        
         const title = (event.summary || '').toLowerCase();
         const searchNameLower = queryInfo.companyName.toLowerCase();
+        
+        // Check if we're looking for a specific meeting type (like 1:1)
+        const originalMessage = queryInfo.originalMessage.toLowerCase();
+        const meetingTypeInQuery = ['1:1', 'one-on-one', 'sync', 'standup', 'check-in'].find(type => 
+          originalMessage.includes(type)
+        );
+        
+        if (meetingTypeInQuery) {
+          // If user specified a meeting type, only return meetings that contain that type in title
+          const meetingTypeMatches = title.includes(meetingTypeInQuery.toLowerCase()) || 
+                                   (meetingTypeInQuery === '1:1' && title.includes('1:1')) ||
+                                   (meetingTypeInQuery === 'one-on-one' && (title.includes('1:1') || title.includes('one on one')));
+          
+          if (!meetingTypeMatches) {
+            console.log('Skipping - no meeting type match:', title, 'looking for:', meetingTypeInQuery);
+            return false;
+          }
+        }
         
         // Check if name is in the meeting title
         if (title.includes(searchNameLower)) {
