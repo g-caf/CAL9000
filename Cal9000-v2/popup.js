@@ -441,6 +441,10 @@ function parseCalendarQuery(message) {
   
   // Improved name patterns to handle various question formats
   const namePatterns = [
+    // Specific SQS patterns (high priority)
+    /\b(sqs)\b/i,
+    /\b(quinn)\b/i,
+    
     // "what is sqs doing tomorrow?" - name without 's
     /(?:what is|what's)\s+([a-zA-Z0-9]+)\s+(?:doing|up to)/i,
     
@@ -518,8 +522,8 @@ function parseCalendarQuery(message) {
       if (match && match[1]) {
         const candidate = match[1].toLowerCase();
         
-        // Skip common words that aren't names
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability'];
+        // Skip common words that aren't names (but don't skip sqs, quinn)
+        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         
         if (!skipWords.includes(candidate) && candidate.length >= 2) {
           person = candidate;
@@ -535,6 +539,22 @@ function parseCalendarQuery(message) {
     if (lastQueriedPerson) {
       person = lastQueriedPerson;
       console.log('Using context - continuing conversation about:', person);
+    }
+  }
+  
+  // Hardcoded mappings for common names/aliases
+  if (person) {
+    const personMappings = {
+      'sqs': 'sqs',
+      'quinn': 'sqs', 
+      'sg': 'sqs', // In case SQS gets parsed as 'sg'
+      'quinn slack': 'sqs'
+    };
+    
+    if (personMappings[person.toLowerCase()]) {
+      const originalPerson = person;
+      person = personMappings[person.toLowerCase()];
+      console.log(`Mapped person name: ${originalPerson} → ${person}`);
     }
   }
   
