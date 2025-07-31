@@ -171,7 +171,8 @@ router.post('/route', async (req, res) => {
       success: true,
       originalMessage: message,
       routing,
-      result
+      result,
+      deploymentTest: "DEPLOYMENT_WORKING_" + new Date().toISOString()
     });
     
   } catch (error) {
