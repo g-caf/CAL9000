@@ -92,27 +92,50 @@ function fallbackParsing(message) {
   
   const lowerMessage = message.toLowerCase();
   
-  // Simple fallbacks for critical cases
-  if (lowerMessage.includes('looking for') && lowerMessage.includes('minutes')) {
-    return {
-      intent: 'scheduling',
-      person: lowerMessage.includes('quinn') ? 'sqs' : null,
-      duration: lowerMessage.match(/(\d+)\s+(minute|hour)s?/)?.[0] || null,
-      dateRange: lowerMessage.includes('next week') ? 'next week' : null,
-      meetingType: lowerMessage.includes('call') ? 'call' : 'meeting',
-      companyName: null,
-      isPersonalQuery: false
-    };
+  // Map person names
+  let person = null;
+  if (lowerMessage.includes('quinn')) person = 'sqs';
+  else if (lowerMessage.includes('sqs')) person = 'sqs';
+  else if (lowerMessage.includes('my') || lowerMessage.includes('me') || lowerMessage.includes('i ')) person = 'adrienne';
+  
+  // Extract duration
+  const durationMatch = lowerMessage.match(/(\d+)\s+(minute|hour)s?/);
+  const duration = durationMatch ? durationMatch[0] : null;
+  
+  // Determine intent based on key phrases
+  let intent = 'calendar_view';
+  let needsAvailabilityCalculation = false;
+  
+  if (lowerMessage.includes('find') && lowerMessage.includes('minute')) {
+    intent = 'find_availability';
+    needsAvailabilityCalculation = true;
+  } else if (lowerMessage.includes('availability') || lowerMessage.includes('available') || lowerMessage.includes('free')) {
+    intent = 'find_availability';
+    needsAvailabilityCalculation = true;
+  } else if (lowerMessage.includes('schedule') || lowerMessage.includes('book')) {
+    intent = 'schedule_meeting';
+    needsAvailabilityCalculation = true;
+  } else if (lowerMessage.includes('show') || lowerMessage.includes('what') || lowerMessage.includes('events')) {
+    intent = 'show_events';
   }
   
+  // Extract date range
+  let dateRange = null;
+  if (lowerMessage.includes('next week')) dateRange = 'next week';
+  else if (lowerMessage.includes('this week')) dateRange = 'this week';
+  else if (lowerMessage.includes('tomorrow')) dateRange = 'tomorrow';
+  else if (lowerMessage.includes('today')) dateRange = 'today';
+  else if (lowerMessage.includes('monday')) dateRange = 'monday';
+  
   return {
-    intent: 'calendar_view',
-    person: 'adrienne',
-    duration: null,
-    dateRange: null,
-    meetingType: null,
+    intent,
+    person,
+    duration,
+    dateRange,
+    meetingType: lowerMessage.includes('call') ? 'call' : 'meeting',
     companyName: null,
-    isPersonalQuery: true
+    isPersonalQuery: person === 'adrienne',
+    needsAvailabilityCalculation
   };
 }
 
