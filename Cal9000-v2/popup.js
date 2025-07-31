@@ -198,7 +198,7 @@ async function refreshAccessToken() {
       throw new Error('No refresh token available');
     }
     
-    const response = await fetch('https://cal9000-backend.onrender.com/auth/refresh', {
+    const response = await fetch('https://cal9000.onrender.com/auth/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -304,7 +304,7 @@ async function sendMessage() {
     if (message.toLowerCase().includes('calendars') || message.toLowerCase().includes('list calendars')) {
       await discoverCalendars(true); // Show details when manually requested
     } else {
-      // Parse the query for person-specific requests
+      // Parse the query for person-specific requests or AI analysis
       await handleCalendarQuery(message);
     }
     
@@ -405,13 +405,19 @@ function removeThinkingMessage() {
 }
 
 async function handleCalendarQuery(message) {
-  console.log('Parsing calendar query:', message);
+  console.log('Handling calendar query:', message);
   
-  // Parse person names and dates from the message
+  // Parse person names and dates from the message or trigger AI analysis
   const queryInfo = await parseCalendarQuery(message);
   console.log('Parsed query:', queryInfo);
   
-  // Show debugging info to user
+  // Handle AI analysis results
+  if (queryInfo.isIntelligentQuery) {
+    await handleIntelligentAnalysis(queryInfo);
+    return;
+  }
+  
+  // Traditional query handling
   if (queryInfo.person) {
     console.log('Found person:', queryInfo.person);
     
@@ -448,36 +454,265 @@ async function handleCalendarQuery(message) {
   }
 }
 
-async function parseCalendarQuery(message) {
-  console.log('Parsing message with LLM:', message);
+/**
+ * Handle AI intelligent analysis results
+ */
+async function handleIntelligentAnalysis(queryInfo) {
+  console.log('Handling intelligent analysis:', queryInfo.analysisType);
+  
+  removeThinkingMessage();
+  
+  const { analysisType, intelligenceResult } = queryInfo;
   
   try {
-    // Call our LLM backend service
-    const response = await fetch('https://cal-9000-83e05f9a67ab.herokuapp.com/api/nlp/parse', {
+    switch (analysisType) {
+      case 'conflict_resolution':
+        await displayConflictResolution(intelligenceResult);
+        break;
+        
+      case 'pattern_recognition':
+        await displayPatternAnalysis(intelligenceResult);
+        break;
+        
+      case 'availability_optimization':
+        await displayAvailabilityOptimization(intelligenceResult);
+        break;
+        
+      case 'multi_person_scheduling':
+        await displayMultiPersonScheduling(intelligenceResult);
+        break;
+        
+      case 'meeting_intelligence':
+        await displayMeetingIntelligence(intelligenceResult);
+        break;
+        
+      case 'focus_time_analysis':
+        await displayFocusTimeAnalysis(intelligenceResult);
+        break;
+        
+      default:
+        addMessage(`AI Analysis complete for ${analysisType}:\n\n${JSON.stringify(intelligenceResult, null, 2)}`, 'assistant');
+    }
+  } catch (error) {
+    console.error('Error displaying intelligent analysis:', error);
+    addMessage(`I completed the AI analysis but had trouble displaying the results. Error: ${error.message}`, 'assistant');
+  }
+}
+
+/**
+ * Display conflict resolution results
+ */
+async function displayConflictResolution(result) {
+  if (result.recommendedTimes && result.recommendedTimes.length > 0) {
+    const timesList = result.recommendedTimes.map((rec, index) => 
+      `${index + 1}. **${rec.timeSlot}** (${rec.confidence} confidence)\n   ${rec.reasoning}`
+    ).join('\n\n');
+    
+    let message = `🎯 **Smart Scheduling Recommendations:**\n\n${timesList}`;
+    
+    if (result.conflictAnalysis) {
+      message += `\n\n📊 **Schedule Analysis:**`;
+      if (result.conflictAnalysis.busyPeriods?.length > 0) {
+        message += `\n• Busy periods: ${result.conflictAnalysis.busyPeriods.join(', ')}`;
+      }
+      if (result.conflictAnalysis.optimalDayPattern) {
+        message += `\n• ${result.conflictAnalysis.optimalDayPattern}`;
+      }
+    }
+    
+    if (result.schedulingInsights?.length > 0) {
+      message += `\n\n💡 **Insights:**\n${result.schedulingInsights.map(insight => `• ${insight}`).join('\n')}`;
+    }
+    
+    addMessage(message, 'assistant');
+  } else {
+    addMessage('I analyzed your calendar but couldn\'t find optimal meeting times with the current constraints. Try adjusting the time range or duration.', 'assistant');
+  }
+}
+
+/**
+ * Display pattern analysis results
+ */
+async function displayPatternAnalysis(result) {
+  let message = `📈 **Calendar Pattern Analysis:**\n\n`;
+  
+  if (result.patterns) {
+    if (result.patterns.preferredDays?.length > 0) {
+      message += `📅 **Meeting Days:** ${result.patterns.preferredDays.join(', ')}\n`;
+    }
+    if (result.patterns.preferredTimes?.length > 0) {
+      message += `⏰ **Preferred Times:** ${result.patterns.preferredTimes.join(', ')}\n`;
+    }
+    if (result.patterns.meetingDurations?.length > 0) {
+      message += `⏱️ **Common Durations:** ${result.patterns.meetingDurations.join(', ')}\n`;
+    }
+    if (result.patterns.backToBackTrends) {
+      message += `🔄 **Back-to-back Pattern:** ${result.patterns.backToBackTrends}\n`;
+    }
+  }
+  
+  if (result.efficiency) {
+    message += `\n⚡ **Efficiency Score:** ${result.efficiency.score}/10\n`;
+    if (result.efficiency.areas_for_improvement?.length > 0) {
+      message += `🎯 **Areas to Improve:** ${result.efficiency.areas_for_improvement.join(', ')}\n`;
+    }
+  }
+  
+  if (result.recommendations?.length > 0) {
+    message += `\n💡 **Recommendations:**\n${result.recommendations.map(rec => `• ${rec}`).join('\n')}`;
+  }
+  
+  addMessage(message, 'assistant');
+}
+
+/**
+ * Display availability optimization results
+ */
+async function displayAvailabilityOptimization(result) {
+  let message = `🎯 **Calendar Optimization Suggestions:**\n\n`;
+  
+  if (result.focusTimeBlocks?.length > 0) {
+    message += `🧠 **Focus Time Opportunities:**\n`;
+    result.focusTimeBlocks.forEach((block, index) => {
+      message += `${index + 1}. **${block.timeSlot}** (${block.duration} min) - ${block.quality} quality\n   ${block.reasoning}\n`;
+    });
+    message += '\n';
+  }
+  
+  if (result.bufferSuggestions?.length > 0) {
+    message += `⏸️ **Buffer Time Suggestions:**\n`;
+    result.bufferSuggestions.forEach(suggestion => {
+      message += `• ${suggestion.recommendation} - ${suggestion.benefit}\n`;
+    });
+    message += '\n';
+  }
+  
+  if (result.availabilityScore) {
+    message += `📊 **Availability Score:** ${result.availabilityScore.current}/10 → ${result.availabilityScore.potential}/10\n`;
+    if (result.availabilityScore.improvements?.length > 0) {
+      message += `🎯 **Key Improvements:** ${result.availabilityScore.improvements.join(', ')}\n`;
+    }
+  }
+  
+  if (result.consolidationOpportunities?.length > 0) {
+    message += `\n📋 **Meeting Consolidation:**\n${result.consolidationOpportunities.map(opp => `• ${opp}`).join('\n')}`;
+  }
+  
+  addMessage(message, 'assistant');
+}
+
+/**
+ * Display focus time analysis results
+ */
+async function displayFocusTimeAnalysis(result) {
+  let message = `🧠 **Focus Time Analysis:**\n\n`;
+  
+  if (result.focusOpportunities?.length > 0) {
+    message += `⏰ **Focus Time Opportunities:**\n`;
+    result.focusOpportunities.forEach((opp, index) => {
+      message += `${index + 1}. **${opp.timeBlock}** (${opp.duration} min)\n`;
+      message += `   Quality: ${opp.quality} | Energy: ${opp.energyLevel} | Interruption Risk: ${opp.interruptionRisk}\n`;
+      if (opp.recommendations?.length > 0) {
+        message += `   Tips: ${opp.recommendations.join(', ')}\n`;
+      }
+      message += '\n';
+    });
+  }
+  
+  if (result.calendarAdjustments?.length > 0) {
+    message += `🎯 **Calendar Adjustments:**\n${result.calendarAdjustments.map(adj => `• ${adj}`).join('\n')}\n\n`;
+  }
+  
+  if (result.productivityInsights?.length > 0) {
+    message += `⚡ **Productivity Insights:**\n${result.productivityInsights.map(insight => `• ${insight}`).join('\n')}`;
+  }
+  
+  addMessage(message, 'assistant');
+}
+
+async function parseCalendarQuery(message) {
+  console.log('Parsing message with intelligent routing:', message);
+  
+  try {
+    // First, get calendar events for intelligent analysis
+    const calendarEvents = await getCurrentCalendarEvents();
+    
+    // Call intelligent query routing
+    const response = await fetch('https://cal9000.onrender.com/api/nlp/route', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ message })
+      body: JSON.stringify({ 
+        message,
+        calendarEvents: calendarEvents || []
+      })
     });
     
     if (!response.ok) {
-      throw new Error(`LLM API error: ${response.status}`);
+      throw new Error(`Intelligent routing API error: ${response.status}`);
     }
     
     const result = await response.json();
-    console.log('LLM parsing result:', result.parsed);
+    console.log('Intelligent routing result:', result);
     
-    // Convert LLM result to our expected format
-    const queryInfo = convertLLMResultToQueryInfo(result.parsed, message);
-    console.log('Converted query info:', queryInfo);
-    
-    return queryInfo;
+    // Handle different result types
+    if (result.routing.type === 'intelligence') {
+      return convertIntelligenceResultToQueryInfo(result.result, message, result.routing);
+    } else {
+      // Traditional parsing result
+      return convertLLMResultToQueryInfo(result.result, message);
+    }
     
   } catch (error) {
-    console.error('LLM parsing failed, using fallback:', error);
+    console.error('Intelligent parsing failed, using fallback:', error);
     return fallbackParseCalendarQuery(message);
   }
+}
+
+/**
+ * Get current calendar events for analysis
+ */
+async function getCurrentCalendarEvents() {
+  try {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    const response = await makeAuthorizedRequest(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
+      `timeMin=${weekAgo.toISOString()}&timeMax=${monthFromNow.toISOString()}`
+    );
+    
+    if (!response.ok) {
+      console.log('Could not fetch calendar events for analysis');
+      return null;
+    }
+    
+    const data = await response.json();
+    return data.items || [];
+    
+  } catch (error) {
+    console.error('Error fetching calendar events for analysis:', error);
+    return null;
+  }
+}
+
+/**
+ * Convert AI intelligence result to query info format
+ */
+function convertIntelligenceResultToQueryInfo(intelligenceResult, originalMessage, routing) {
+  // This creates a special query info object that indicates AI analysis was used
+  return {
+    intent: 'ai_analysis',
+    analysisType: routing.analysisType,
+    intelligenceResult: intelligenceResult,
+    originalMessage: originalMessage,
+    isIntelligentQuery: true,
+    person: extractPersonFromMessage(originalMessage),
+    dateRange: determineDateRangeFromOptions(routing.options)
+  };
 }
 
 function convertLLMResultToQueryInfo(llmResult, originalMessage) {
@@ -1544,6 +1779,45 @@ function formatEvent(event) {
     const dateStr = formatDateShortNoBrackets(startDate);
     const timeStr = formatTimeWithZone(startDate);
     return `<strong>${dateStr} at ${timeStr}</strong> | ${title}`;
+  }
+}
+
+/**
+ * Extract person name from message for AI analysis context
+ */
+function extractPersonFromMessage(message) {
+  const lowerMessage = message.toLowerCase();
+  
+  // Common person references
+  if (lowerMessage.includes('quinn') || lowerMessage.includes('sqs')) {
+    return 'sqs';
+  }
+  if (lowerMessage.includes('adrienne') || lowerMessage.includes('me') || lowerMessage.includes('my')) {
+    return 'adrienne';
+  }
+  
+  return null;
+}
+
+/**
+ * Determine date range from analysis options
+ */
+function determineDateRangeFromOptions(options) {
+  if (!options || !options.timeRange) {
+    return getTodayRange(); // Default
+  }
+  
+  switch (options.timeRange) {
+    case 'today':
+      return getTodayRange();
+    case 'tomorrow':
+      return getTomorrowRange();
+    case 'next_week':
+      return getNextWeekRange();
+    case 'this_week':
+      return getThisWeekRange();
+    default:
+      return getTodayRange();
   }
 }
 
