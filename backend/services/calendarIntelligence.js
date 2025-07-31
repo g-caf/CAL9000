@@ -32,6 +32,51 @@ class CalendarIntelligence {
   }
 
   /**
+   * Parse AI response with robust error handling and cleanup
+   */
+  parseAIResponse(content) {
+    try {
+      // Remove markdown code blocks if present
+      let cleanContent = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // Extract JSON from response (find the largest JSON object)
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('No JSON found in OpenAI response:', content);
+        throw new Error('OpenAI did not return valid JSON format');
+      }
+      
+      let jsonStr = jsonMatch[0];
+      
+      // Try to fix common JSON issues
+      jsonStr = jsonStr
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":') // Quote unquoted keys
+        .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}])/g, ':"$1"$2'); // Quote unquoted values
+      
+      console.log('Cleaned JSON string:', jsonStr.substring(0, 200) + '...');
+      
+      const result = JSON.parse(jsonStr);
+      return result;
+      
+    } catch (parseError) {
+      console.error('JSON parsing failed:', parseError.message);
+      console.error('Content:', content.substring(0, 500));
+      
+      // Return a fallback structure
+      return {
+        recommendedTimes: [],
+        conflictAnalysis: {
+          busyPeriods: [],
+          availableWindows: [],
+          optimalDayPattern: "Unable to analyze due to parsing error"
+        },
+        schedulingInsights: ["AI response could not be parsed - please try again"]
+      };
+    }
+  }
+
+  /**
    * Filter events to only those relevant for scheduling analysis
    */
   filterRelevantEvents(events, options = {}) {
@@ -228,8 +273,10 @@ Analysis Tasks:
 CRITICAL: 
 - Only suggest times between 9:00 AM and 5:00 PM. Never suggest times like 2:00 AM, 3:00 AM, or any time outside normal business hours.
 - Use ISO timestamp format for timeSlot (e.g., "2025-08-05T10:00:00-06:00"), not human-readable text.
+- Return ONLY valid JSON. No markdown formatting, no extra text, no code blocks.
+- Ensure all strings are properly quoted and all arrays/objects have correct syntax.
 
-Provide recommendations in this format:
+Provide recommendations in this exact JSON format:
 {
   "recommendedTimes": [
     {
@@ -262,14 +309,8 @@ Provide recommendations in this format:
       const content = response.choices[0].message.content.trim();
       console.log('OpenAI raw response:', content);
       
-      // Extract JSON from response (in case there's extra text)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('No JSON found in OpenAI response:', content);
-        throw new Error('OpenAI did not return valid JSON format');
-      }
-      
-      const analysisResult = JSON.parse(jsonMatch[0]);
+      // Extract and clean JSON from response
+      const analysisResult = this.parseAIResponse(content);
 
       // Map back any anonymized data to original context
       return this.mapAnalysisToOriginalContext(analysisResult, options);
