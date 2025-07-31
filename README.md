@@ -1,76 +1,219 @@
-# Calendar Slack Sync Chrome Extension
+# CAL 9000 - AI-Powered Calendar Assistant
 
-A Chrome extension that helps with scheduling by extracting availability from Slack messages, converting timezones, and detecting conflicts with Google Calendar.
+A Chrome extension that acts as your personal calendar assistant, capable of understanding natural language queries about schedules and providing intelligent availability analysis.
 
 ## Features
 
-- 🕒 **Smart Timezone Detection**: Automatically detects timezone from names (Trevor → PST, Devon → EST, Kelsey → CST)
-- 📅 **Google Calendar Integration**: Reads your calendar and detects scheduling conflicts
-- 🎯 **Precise Conflict Detection**: Shows exact time overlaps, not just "busy day"
-- 🌈 **Color-Coded Results**: Green (free), Yellow (partial conflicts), Red (fully blocked)
-- ⚡ **Instant Conversion**: Paste availability text and get immediate timezone conversion
+- 🤖 **Natural Language Processing**: Ask questions like "When is Alex available on Monday?" or "Find 30 minutes with Sarah next week"
+- 📅 **Google Calendar Integration**: Direct OAuth integration with full calendar access
+- 🧠 **AI-Powered Analysis**: Uses OpenAI to analyze calendar data and find optimal meeting times
+- 🎯 **Smart Person Mapping**: Automatically maps names and aliases for team members
+- ⏰ **Business Hours Enforcement**: Only suggests reasonable meeting times (9 AM - 5 PM)
+- 🌍 **Timezone Intelligence**: Handles multiple timezones with proper conversions
+- 📊 **Conflict Resolution**: Finds available time slots while respecting existing meetings
+- 💬 **Chat Interface**: Clean, conversational UI for natural interactions
 
-## Installation Instructions
+## Installation
 
-### For Team Members:
+### Development Installation
 
-1. **Download the Extension Files**
-   - Get the extension folder from your team lead
-   - Make sure you have: `manifest.json`, `content.js`, and this `README.md`
+1. **Clone the Repository**
+   ```bash
+   git clone <repository-url>
+   cd CAL9000
+   ```
 
-2. **Install in Chrome**
+2. **Install Dependencies**
+   ```bash
+   cd backend
+   npm install
+   ```
+
+3. **Set Up Environment**
+   ```bash
+   # In backend/ directory
+   cp .env.example .env
+   # Add your OpenAI API key to .env
+   export OPENAI_API_KEY=your_key_here
+   ```
+
+4. **Start Backend Server**
+   ```bash
+   cd backend
+   npm start
+   ```
+
+5. **Load Extension in Chrome**
    - Open Chrome and go to `chrome://extensions/`
    - Turn ON "Developer mode" (toggle in top right)
    - Click "Load unpacked"
-   - Select the extension folder
+   - Select the `Cal9000-v2` folder
    - The extension should now appear in your extensions list
 
-3. **Usage**
-   - Go to `calendar.google.com` or any Slack workspace
-   - Look for a green clock icon in the top-right corner
-   - Click the clock to open the timezone converter
-   - Paste scheduling availability text and select target timezone
-   - See color-coded results with conflict detection!
+6. **Authorize Google Calendar**
+   - Click the CAL 9000 extension icon
+   - Follow OAuth flow to grant calendar access
+   - Start asking calendar questions!
 
-## Supported Sites
+## Usage Examples
 
-- ✅ Google Calendar (calendar.google.com) - Full conflict detection
-- ✅ Slack (*.slack.com) - Basic timezone conversion
+### Availability Queries
+- "When is Alex available on Monday 8/4?"
+- "Find 30 minutes with Sarah next week"
+- "What's my availability tomorrow?"
+- "When can I meet with someone for 1 hour on Friday?"
 
-## Timezone Support
+### Event Queries  
+- "Show my meetings today"
+- "What's Alex doing tomorrow?"
+- "What meetings do I have with [Company] this week?"
+- "When is my next meeting?"
 
-**Automatic Detection:**
-- Trevor → Pacific Time (PST)
-- Devon → Eastern Time (EST) 
-- Kelsey → Central Time (CST)
+### Smart Features
+- **Person Recognition**: Maps team member names and aliases automatically
+- **Date Intelligence**: Understands "Monday", "next week", "8/4", "tomorrow"
+- **Duration Parsing**: Extracts meeting lengths from natural language
+- **Conflict Analysis**: Shows actual availability based on real calendar events
 
-**Manual Selection:**
-- All major US timezones (ET, CT, MT, PST)
-- UTC and international timezones
-- Toronto, Vancouver, London, Tokyo, and more
+## Architecture
 
-## How It Works
+### Frontend (Chrome Extension)
+- **Location**: `Cal9000-v2/`
+- **Main Files**: `popup.html`, `popup.js`, `manifest.json`
+- **Features**: Chat UI, OAuth flow, calendar API integration
 
-1. **Extract**: Parses availability text for dates and times
-2. **Convert**: Transforms times to your selected timezone
-3. **Analyze**: Reads Google Calendar events for the relevant dates
-4. **Detect**: Calculates precise time overlaps
-5. **Display**: Shows color-coded results with conflict percentages
+### Backend (Node.js API)
+- **Location**: `backend/`
+- **Main Components**:
+  - `routes/nlp.js` - API endpoints for query processing
+  - `services/llm.js` - OpenAI integration and query parsing
+  - `services/calendarIntelligence.js` - AI calendar analysis
+  - `services/calendarSanitizer.js` - Data protection and anonymization
 
-## Troubleshooting
+### Key Technologies
+- **Frontend**: Chrome Extension API, Google Calendar API
+- **Backend**: Node.js, Express, OpenAI GPT-4
+- **AI**: Natural language processing, intelligent calendar analysis
+- **Security**: Data sanitization, privacy-first design
 
-**Clock icon not showing?**
-- Refresh the page
-- Check that you're on calendar.google.com or *.slack.com
-- Verify extension is enabled in chrome://extensions/
+## Environment Setup
 
-**Conflict detection not working?**
-- Make sure you're on Google Calendar
-- Check that the calendar is in week view
-- Verify dates in availability text match the visible calendar week
+### Required Environment Variables
+```bash
+# Backend (.env file)
+OPENAI_API_KEY=your_openai_api_key
+PORT=3000
+NODE_ENV=development
+```
 
-**Need help?** Contact your team lead who shared this extension.
+### Deployment
+- **Backend**: Deployed on Render.com
+- **URL**: `https://cal9000.onrender.com`
+- **Extension**: Loads unpacked for development
+
+## Commands
+
+### Development
+- **Backend**: `cd backend && npm start` - Start development server
+- **Extension**: Load extension in `chrome://extensions` with developer mode enabled
+
+### Testing  
+- **Backend Tests**: `cd backend && npm test` - Run data protection framework tests
+- **Intelligence Tests**: `cd backend && node test-intelligence.js` - Test AI system
+- **Coverage**: `cd backend && npm run test:coverage` - Run tests with coverage
+
+### Production
+- **Build**: No build process needed for basic extension
+- **Deploy**: Backend auto-deploys to Render.com on git push
+
+## Project Structure
+
+```
+CAL9000/
+├── Cal9000-v2/           # Chrome Extension
+│   ├── popup.html        # Main UI
+│   ├── popup.js          # Frontend logic with AI integration
+│   ├── background.js     # Service worker
+│   └── manifest.json     # Extension manifest (v3)
+├── backend/              # Node.js Backend
+│   ├── services/
+│   │   ├── calendarIntelligence.js  # AI analysis engine
+│   │   ├── schedulingEngine.js      # Smart scheduling
+│   │   ├── calendarSanitizer.js     # Data protection
+│   │   └── llm.js                   # OpenAI integration
+│   ├── routes/nlp.js     # API endpoints
+│   └── package.json      # Dependencies
+└── README.md            # This file
+```
+
+## API Endpoints
+
+### Core Endpoints
+- `POST /api/nlp/route` - Intelligent query routing and analysis
+- `POST /api/nlp/analyze` - Direct calendar analysis  
+- `POST /api/nlp/schedule` - Smart scheduling operations
+- `POST /api/nlp/parse` - Traditional query parsing (backwards compatible)
+
+### Analysis Types
+- `conflict_resolution` - Find optimal meeting times
+- `pattern_recognition` - Analyze scheduling patterns
+- `availability_optimization` - Optimize calendar efficiency
+- `multi_person_scheduling` - Multi-calendar coordination
+- `meeting_intelligence` - Meeting type recommendations
+- `focus_time_analysis` - Deep work optimization
+
+## Data Protection
+
+### Privacy Features
+- **Data Anonymization**: Sensitive information removed before AI processing
+- **Safety Validation**: Multiple layers of data protection
+- **Minimal Data**: Only essential calendar info sent to AI
+- **Secure Sessions**: Proper authentication and session management
+
+### Security Measures
+- **XSS Prevention**: Input sanitization and validation
+- **CORS Protection**: Extension ID verification
+- **Rate Limiting**: API abuse prevention
+- **CSP Headers**: Content Security Policy enforcement
+
+## Contributing
+
+1. **Issues**: Report bugs or request features via GitHub issues
+2. **Development**: Follow the installation steps above
+3. **Testing**: Run test suites before submitting PRs
+4. **Documentation**: Update README and comments for new features
 
 ## Version History
 
-- **v1.0.0** - Initial release with timezone conversion and conflict detection
+- **v2.0** - Complete rebuild with AI integration
+- **v1.1** - Added intelligent calendar analysis system
+- **v1.0** - Initial Chrome extension with basic functionality
+
+## Support
+
+For questions or issues:
+1. Check the troubleshooting section below
+2. Review the project documentation
+3. Contact the development team
+
+## Troubleshooting
+
+**Extension not working?**
+- Refresh the page and try again
+- Check that backend server is running
+- Verify OpenAI API key is configured
+
+**Calendar access issues?**
+- Re-authorize through the extension popup
+- Check Google Calendar permissions
+- Ensure you're signed into the correct Google account
+
+**AI responses seem wrong?**
+- Verify your query is clear and specific
+- Check that the backend logs show proper parsing
+- Ensure calendar events are loading correctly
+
+**Backend connection errors?**
+- Verify the backend server is running on correct port
+- Check network connectivity
+- Review CORS and security settings
