@@ -403,7 +403,7 @@ async function handleCalendarQuery(message) {
   console.log('Parsing calendar query:', message);
   
   // Parse person names and dates from the message
-  const queryInfo = parseCalendarQuery(message);
+  const queryInfo = await parseCalendarQuery(message);
   console.log('Parsed query:', queryInfo);
   
   // Show debugging info to user
@@ -443,359 +443,143 @@ async function handleCalendarQuery(message) {
   }
 }
 
-function parseCalendarQuery(message) {
-  const lowerMessage = message.toLowerCase();
-  console.log('Parsing message:', lowerMessage);
+async function parseCalendarQuery(message) {
+  console.log('Parsing message with LLM:', message);
   
-  // Improved name patterns to handle various question formats
-  const namePatterns = [
-    // Specific SQS patterns (high priority)
-    /\b(sqs)\b/i,
-    /\b(quinn)\b/i,
+  try {
+    // Call our LLM backend service
+    const response = await fetch('https://cal-9000-83e05f9a67ab.herokuapp.com/api/nlp/parse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message })
+    });
     
-    // "what is sqs doing tomorrow?" - name without 's
-    /(?:what is|what's)\s+([a-zA-Z0-9]+)\s+(?:doing|up to)/i,
+    if (!response.ok) {
+      throw new Error(`LLM API error: ${response.status}`);
+    }
     
-    // "is sqs free tomorrow?" - availability questions
-    /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available|busy)/i,
+    const result = await response.json();
+    console.log('LLM parsing result:', result.parsed);
     
-    // "show me sqs's events" - possessive forms
-    /(?:show me|what is|what's)\s+([a-zA-Z0-9]+)(?:'s|s)\s+(?:events|calendar|schedule)/i,
+    // Convert LLM result to our expected format
+    const queryInfo = convertLLMResultToQueryInfo(result.parsed, message);
+    console.log('Converted query info:', queryInfo);
     
-    // "sqs's events tomorrow" - direct possessive
-    /([a-zA-Z0-9]+)(?:'s|s)\s+(?:events|calendar|schedule)/i,
+    return queryInfo;
     
-    // "show sqs's calendar" - show commands
-    /(?:show|get|find)\s+([a-zA-Z0-9]+)(?:'s|s)/i,
-    
-    // "sqs tomorrow" - simple format
-    /^([a-zA-Z0-9]+)\s+(?:today|tomorrow|this week|next week)/i,
-    
-    // Generic fallback - any name-like word
-    /\b([a-zA-Z0-9]{2,})\b/i
-  ];
-  
-  let person = null;
+  } catch (error) {
+    console.error('LLM parsing failed, using fallback:', error);
+    return fallbackParseCalendarQuery(message);
+  }
+}
+
+function convertLLMResultToQueryInfo(llmResult, originalMessage) {
+  // Convert LLM result to our internal format
   let dateRange = null;
-  let isAvailabilityCheck = false;
-  let isSpecificEventQuery = false;
-  let isCompanyMeetingQuery = false;
-  let isNextMeetingQuery = false; // Single next meeting vs all meetings
-  let isSchedulingRequest = false; // Looking for available time slots
-  let meetingDuration = null;
-  let companyName = null;
-  let eventType = null;
-  let specificTime = null;
-  let timezone = null;
   
-  // Check if this is a scheduling request (finding available time slots)
-  const schedulingPatterns = [
-    /find\s+(\d+)\s+(minute|hour)s?\s+for\s+(?:a\s+)?(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
-    /(?:can you )?help.*find\s+(\d+)\s+(minute|hour)s?\s+for\s+(?:a\s+)?(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
-    /find time for (?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)(?:\s+(?:next|this)\s+week)?/i,
-    /(?:can you )?help.*find time for (?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
-    /(?:when can|can)\s+(?:i|we)\s+(?:meet|schedule|have)\s+(?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9]+)/i,
-    /schedule\s+(?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9]+)/i
-  ];
-
-  for (const pattern of schedulingPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      isSchedulingRequest = true;
-      meetingDuration = `${match[1]} ${match[2]}`; // e.g., "30 minute"
-      person = match[3]?.trim().toLowerCase(); // person is now in match[3]
-      console.log('Detected scheduling request for:', meetingDuration, 'with:', person);
-      break;
-    }
-  }
-
-  // Check if this is an availability question (existing logic)
-  const availabilityPatterns = [
-    /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)/i,
-    /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)\s+(?:at|on)/i,
-    /(?:what is|what's)\s+([a-zA-Z0-9]+)(?:'s|s)?\s+(?:availability)/i
-  ];
-  
-  for (const pattern of availabilityPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      isAvailabilityCheck = true;
-      if (match[1] && !person) {
-        person = match[1].toLowerCase();
-        console.log('Found person from availability pattern:', person);
-      }
-      console.log('Detected availability check');
-      break;
-    }
-  }
-  
-  // Check if this is a specific event query and extract person name
-  const eventPatterns = [
-    /(?:what time is|when is)\s+([a-zA-Z0-9]+)(?:'s|s)?\s+(flight|meeting|call|interview|appointment)/i,
-    /(?:what time is|when is)\s+([a-zA-Z0-9]+)(?:'s|s)?\s+(.+?)\s+(?:on|today|tomorrow)/i,
-    /([a-zA-Z0-9]+)(?:'s|s)?\s+(flight|meeting|call|interview|appointment)/i
-  ];
-  
-  for (const pattern of eventPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      isSpecificEventQuery = true;
-      person = match[1]?.toLowerCase();  // Extract person from event pattern
-      eventType = match[2]?.toLowerCase();
-      console.log('Detected specific event query for:', eventType, 'person:', person);
-      break;
-    }
-  }
-  
-  // Check if this is a company meeting query
-  const companyMeetingPatterns = [
-    /(?:when is|when does)\s+([a-zA-Z0-9]+)\s+(?:meeting|meet)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
-    /([a-zA-Z0-9]+)(?:'s|s)?\s+(?:next\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
-    /(?:what time is|when is)\s+(?:the\s+)?(?:meeting|call)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
-    // Patterns for "1:1", "one-on-one", and other meeting types
-    /(?:when is|what time is)\s+(?:my\s+)?(?:next\s+)?(1:1|one.on.one|sync|standup|check.in)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i,
-    /(?:my\s+)?(?:next\s+)?(1:1|one.on.one|sync|standup|check.in)\s+(?:with|at)\s+([\w\s]+?)(?:\?|$)/i
-  ];
-  
-  for (const pattern of companyMeetingPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      isCompanyMeetingQuery = true;
-      
-      // Check if this is asking for "next meeting" (singular) vs "meetings" (plural)
-      const nextMeetingPatterns = [
-        /\bnext\s+(?:1:1\s+)?meeting\b/i,
-        /\bmy\s+next\s+(?:1:1\s+)?meeting\b/i,
-        /when\s+is\s+(?:my\s+)?next\b/i
-      ];
-      
-      for (const nextPattern of nextMeetingPatterns) {
-        if (message.match(nextPattern)) {
-          isNextMeetingQuery = true;
-          console.log('Detected "next meeting" query - will return single result');
-          break;
-        }
-      }
-      
-      // Handle different pattern match groups
-      const meetingTypes = ['1:1', '1-1', 'one-on-one', 'sync', 'standup', 'check-in', 'checkin'];
-      
-      if (match.length >= 3) {
-        // Check if match[1] is a meeting type rather than a person name
-        const isMatchMeetingType = meetingTypes.some(type => 
-          match[1]?.toLowerCase().includes(type.toLowerCase())
-        );
-        
-        if (match[1] && !isMatchMeetingType && !['when', 'what', 'my'].includes(match[1].toLowerCase())) {
-          // For patterns like "when is [person] meeting with [company]"
-          person = match[1]?.toLowerCase();
-          companyName = match[2]?.trim();
-        } else {
-          // For patterns like "when is my [meetingType] with [company]" 
-          companyName = match[2]?.trim();
-        }
-      } else {
-        companyName = match[1]?.trim();
-      }
-      console.log('Detected company meeting query for:', companyName, 'person:', person);
-      break;
-    }
-  }
-  
-  // Extract person name (only if not already found in event patterns)
-  if (!person) {
-    for (let i = 0; i < namePatterns.length; i++) {
-      const pattern = namePatterns[i];
-      const match = message.match(pattern);
-      console.log(`Pattern ${i + 1}: ${pattern} → Match:`, match);
-      if (match && match[1]) {
-        const candidate = match[1].toLowerCase();
-        
-        // Skip common words that aren't names (but don't skip sqs, quinn, adrienne)
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'my', 'i', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call', '1', '2', '3', '4', '5', 'a', 'an', 'help', 'can', 'minutes', 'minute', 'hour', 'hours'];
-        
-        // Skip single digits/numbers that might be from "1:1", "2:1" etc.
-        if (candidate.match(/^\d+$/)) {
-          console.log('Skipping single digit/number:', candidate);
-          continue;
-        }
-        
-        if (!skipWords.includes(candidate) && candidate.length >= 2) {
-          person = candidate;
-          console.log('Found person:', person);
-          break;
-        }
-      }
-    }
-  }
-  
-  // Use context if no person found but query sounds like it's continuing a conversation
-  if (!person && (message.toLowerCase().includes('what about') || message.toLowerCase().includes('how about'))) {
-    if (lastQueriedPerson) {
-      person = lastQueriedPerson;
-      console.log('Using context - continuing conversation about:', person);
-    }
-  }
-  
-  // Handle personal pronouns and possessives that refer to the authenticated user
-  if (person) {
-    const personalPronouns = ['my', 'me', 'i', 'myself'];
-    if (personalPronouns.includes(person.toLowerCase())) {
-      person = 'adrienne'; // Map to authenticated user
-      console.log(`Mapped personal pronoun to authenticated user: ${person}`);
-    }
-  }
-  
-  // Check for possessive patterns that refer to the user ("my meeting", "my calendar", etc.)
-  const personalPossessivePatterns = [
-    /\bmy\s+(?:meeting|calendar|schedule|events?|availability|next)\b/i,
-    /\bi\s+(?:have|am|meet)/i,
-    /\bam\s+i\b/i,
-    /when\s+is\s+my\b/i,
-    /what\s+is\s+my\b/i
-  ];
-  
-  if (!person) {
-    for (const pattern of personalPossessivePatterns) {
-      if (message.match(pattern)) {
-        person = 'adrienne';
-        console.log('Detected personal possessive pattern, using authenticated user calendar');
+  // Parse date range
+  if (llmResult.dateRange) {
+    switch (llmResult.dateRange.toLowerCase()) {
+      case 'today':
+        dateRange = getTodayRange();
         break;
-      }
-    }
-  }
-  
-  // Hardcoded mappings for common names/aliases
-  if (person) {
-    const personMappings = {
-      'sqs': 'sqs',
-      'quinn': 'sqs', 
-      'sg': 'sqs', // In case SQS gets parsed as 'sg'
-      'quinn slack': 'sqs',
-      'adrienne': 'adrienne'
-    };
-    
-    if (personMappings[person.toLowerCase()]) {
-      const originalPerson = person;
-      person = personMappings[person.toLowerCase()];
-      console.log(`Mapped person name: ${originalPerson} → ${person}`);
-    }
-  }
-  
-  // Extract specific time if mentioned
-  const timeMatch = message.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i);
-  if (timeMatch) {
-    specificTime = timeMatch[1];
-    console.log('Found specific time:', specificTime);
-  }
-  
-  // Extract timezone
-  const tzPatterns = [
-    /\b(EST|CST|MST|PST|EDT|CDT|MDT|PDT|UTC)\b/i,
-    /\b(eastern|central|mountain|pacific)\b/i
-  ];
-  
-  for (const pattern of tzPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      timezone = match[1].toUpperCase();
-      // Convert common timezone names
-      const tzMap = {
-        'EASTERN': 'EST',
-        'CENTRAL': 'CST', 
-        'MOUNTAIN': 'MST',
-        'PACIFIC': 'PST'
-      };
-      timezone = tzMap[timezone] || timezone;
-      console.log('Found timezone:', timezone);
-      break;
-    }
-  }
-  
-  // Check for relative day patterns first (like "this Thursday" or "next Monday")
-  const relativeDayMatch = message.match(/(this|next)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
-  if (relativeDayMatch) {
-    const modifier = relativeDayMatch[1].toLowerCase();
-    const dayName = relativeDayMatch[2].toLowerCase();
-    console.log('Found relative day:', modifier, dayName);
-    dateRange = parseRelativeDay(modifier, dayName);
-    if (dateRange) {
-      console.log('Parsed relative day range');
-    }
-  }
-  
-  // Check for specific date formats (like "Friday, 8/1" or "8/1")
-  if (!dateRange) {
-    const specificDateMatch = message.match(/(\w+,?\s*)?(\d{1,2}\/\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);
-    if (specificDateMatch) {
-      const dateStr = specificDateMatch[2];
-      console.log('Found specific date:', dateStr);
-      dateRange = parseSpecificDate(dateStr);
-      if (dateRange) {
-        console.log('Parsed specific date range');
-      }
-    }
-  }
-  
-  // If no specific date found, try keyword patterns
-  if (!dateRange) {
-    const datePatterns = {
-      'tomorrow': getTomorrowRange(),
-      'today': getTodayRange(),
-      'this week': getThisWeekRange(),
-      'next week': getNextWeekRange()
-    };
-    
-    for (const [keyword, range] of Object.entries(datePatterns)) {
-      if (lowerMessage.includes(keyword)) {
-        dateRange = range;
-        console.log('Found date range:', keyword);
+      case 'tomorrow':
+        dateRange = getTomorrowRange();
         break;
-      }
+      case 'next week':
+        dateRange = getNextWeekRange();
+        break;
+      case 'this week':
+        dateRange = getThisWeekRange();
+        break;
+      default:
+        // Try to parse specific dates
+        dateRange = parseSpecificDate(llmResult.dateRange) || getNext30DaysRange();
     }
   }
   
-  // Default to today if no date specified, or 30 days for company meeting queries
+  // Default date range if none specified
   if (!dateRange) {
-    if (isCompanyMeetingQuery) {
-      dateRange = getNext30DaysRange();
-      console.log('Using default date range for company meeting: next 30 days');
+    if (llmResult.person || llmResult.companyName || llmResult.intent === 'meeting_search') {
+      dateRange = getNext30DaysRange(); // Broader search for person/company queries
     } else {
-      dateRange = getTodayRange();
-      console.log('Using default date range: today');
+      dateRange = getThisWeekRange(); // Default for general queries
     }
   }
   
-  // If we have specific time, adjust date range to that specific time slot
-  if (specificTime && isAvailabilityCheck) {
-    dateRange = getSpecificTimeRange(dateRange, specificTime, timezone);
-    console.log('Adjusted to specific time range');
+  return {
+    person: llmResult.person,
+    dateRange,
+    isAvailabilityCheck: llmResult.intent === 'availability',
+    isSpecificEventQuery: llmResult.intent === 'meeting_search' && llmResult.meetingType,
+    isCompanyMeetingQuery: !!llmResult.companyName || llmResult.intent === 'meeting_search',
+    isNextMeetingQuery: originalMessage.toLowerCase().includes('next meeting'),
+    isSchedulingRequest: llmResult.intent === 'scheduling',
+    meetingDuration: llmResult.duration,
+    companyName: llmResult.companyName,
+    eventType: llmResult.meetingType,
+    specificTime: null, // Can enhance later
+    timezone: null // Can enhance later
+  };
+}
+
+function fallbackParseCalendarQuery(message) {
+  console.log('Using simple fallback parsing for:', message);
+  
+  const lowerMessage = message.toLowerCase();
+  
+  // Simple pattern matching for critical cases
+  let person = null;
+  let isSchedulingRequest = false;
+  let meetingDuration = null;
+  let isAvailabilityCheck = false;
+  
+  // Check for scheduling
+  if (lowerMessage.includes('looking for') && lowerMessage.includes('minutes')) {
+    isSchedulingRequest = true;
+    const durationMatch = lowerMessage.match(/(\d+)\s+(minute|hour)s?/);
+    if (durationMatch) {
+      meetingDuration = `${durationMatch[1]} ${durationMatch[2]}`;
+    }
   }
   
-  console.log('Final parse result:', { 
-    person, 
-    dateRange: dateRange ? 'found' : 'null',
-    isAvailabilityCheck,
-    isSpecificEventQuery,
-    eventType,
-    specificTime,
-    timezone
-  });
+  // Check for availability
+  if (lowerMessage.includes('free') || lowerMessage.includes('available')) {
+    isAvailabilityCheck = true;
+  }
   
-  return { 
-    person, 
-    dateRange, 
-    originalMessage: message,
+  // Extract person names
+  if (lowerMessage.includes('quinn') || lowerMessage.includes('sqs')) {
+    person = 'sqs';
+  } else if (lowerMessage.includes('my') || lowerMessage.includes('me') || lowerMessage.includes('i ')) {
+    person = 'adrienne';
+  }
+  
+  // Default date range
+  let dateRange = getThisWeekRange();
+  if (lowerMessage.includes('tomorrow')) {
+    dateRange = getTomorrowRange();
+  } else if (lowerMessage.includes('next week')) {
+    dateRange = getNextWeekRange();
+  } else if (person || isSchedulingRequest) {
+    dateRange = getNext30DaysRange();
+  }
+  
+  return {
+    person,
+    dateRange,
     isAvailabilityCheck,
-    isSpecificEventQuery,
-    isCompanyMeetingQuery,
-    isNextMeetingQuery,
+    isSpecificEventQuery: false,
+    isCompanyMeetingQuery: false,
+    isNextMeetingQuery: lowerMessage.includes('next meeting'),
     isSchedulingRequest,
     meetingDuration,
-    companyName,
-    eventType,
-    specificTime,
-    timezone
+    companyName: null,
+    eventType: null,
+    specificTime: null,
+    timezone: null
   };
 }
 

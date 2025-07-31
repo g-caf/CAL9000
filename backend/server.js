@@ -9,6 +9,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const calendarRoutes = require('./routes/calendar');
 const aiRoutes = require('./routes/ai');
+const nlpRoutes = require('./routes/nlp');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -57,6 +58,7 @@ app.use(passport.session());
 app.use('/auth', authRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/nlp', nlpRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -76,7 +78,8 @@ app.get('/', (req, res) => {
       health: '/health',
       auth: '/auth/*',
       calendar: '/api/calendar/*',
-      ai: '/api/ai/*'
+      ai: '/api/ai/*',
+      nlp: '/api/nlp/*'
     }
   });
 });
