@@ -413,8 +413,12 @@ async function handleCalendarQuery(message) {
     // Store for context in future queries
     lastQueriedPerson = queryInfo.person;
     
-    // Check if this is an availability question
-    if (queryInfo.isAvailabilityCheck) {
+    // Check if this is a scheduling request (finding available time slots)
+    if (queryInfo.isSchedulingRequest) {
+      console.log('Scheduling request detected');
+      addMessage(`Finding available time slots for ${queryInfo.meetingDuration} meeting with ${queryInfo.person}...`, 'assistant');
+      await findAvailableTimeSlots(queryInfo);
+    } else if (queryInfo.isAvailabilityCheck) {
       console.log('Availability check detected');
       addMessage(`Checking if ${queryInfo.person} is available...`, 'assistant');
       await checkPersonAvailability(queryInfo);
@@ -477,12 +481,32 @@ function parseCalendarQuery(message) {
   let isSpecificEventQuery = false;
   let isCompanyMeetingQuery = false;
   let isNextMeetingQuery = false; // Single next meeting vs all meetings
+  let isSchedulingRequest = false; // Looking for available time slots
+  let meetingDuration = null;
   let companyName = null;
   let eventType = null;
   let specificTime = null;
   let timezone = null;
   
-  // Check if this is an availability question
+  // Check if this is a scheduling request (finding available time slots)
+  const schedulingPatterns = [
+    /(?:can you )?find time for (?:a\s+)?(\d+\s+minute|hour)(?:s)?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9\s]+?)(?:\s+(?:next|this)\s+week|\?|$)/i,
+    /(?:when can|can)\s+(?:i|we)\s+(?:meet|schedule|have)\s+(?:a\s+)?(\d+\s+minute|hour)(?:s)?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9\s]+?)(?:\?|$)/i,
+    /schedule\s+(?:a\s+)?(\d+\s+minute|hour)(?:s)?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9\s]+?)(?:\?|$)/i
+  ];
+
+  for (const pattern of schedulingPatterns) {
+    const match = message.match(pattern);
+    if (match) {
+      isSchedulingRequest = true;
+      meetingDuration = match[1]?.trim();
+      person = match[2]?.trim().toLowerCase();
+      console.log('Detected scheduling request for:', meetingDuration, 'with:', person);
+      break;
+    }
+  }
+
+  // Check if this is an availability question (existing logic)
   const availabilityPatterns = [
     /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)/i,
     /(?:is|are)\s+([a-zA-Z0-9]+)\s+(?:free|available)\s+(?:at|on)/i,
@@ -763,6 +787,8 @@ function parseCalendarQuery(message) {
     isSpecificEventQuery,
     isCompanyMeetingQuery,
     isNextMeetingQuery,
+    isSchedulingRequest,
+    meetingDuration,
     companyName,
     eventType,
     specificTime,
@@ -1304,6 +1330,66 @@ function isIndividualName(name) {
   
   // Default to individual for ambiguous cases (better to search broadly)
   return true;
+}
+
+async function findAvailableTimeSlots(queryInfo) {
+  try {
+    const { calendars } = await chrome.storage.local.get(['calendars']);
+    
+    if (!calendars || !calendars.length) {
+      addMessage('I need to discover your calendars first. Try asking "list calendars"', 'assistant');
+      return;
+    }
+    
+    // Find calendar for the person
+    const targetCalendar = findPersonCalendar(queryInfo.person, calendars);
+    
+    if (!targetCalendar) {
+      const availableNames = getAvailablePersonNames(calendars);
+      addMessage(`I couldn't find a calendar for "${queryInfo.person}". Available people: ${availableNames.join(', ')}`, 'assistant');
+      return;
+    }
+    
+    console.log('Finding available time slots for:', queryInfo.meetingDuration, 'with:', targetCalendar.summary);
+    
+    // Get their existing events to find gaps
+    const response = await makeAuthorizedRequest(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
+      `maxResults=500&singleEvents=true&orderBy=startTime&` +
+      `timeMin=${queryInfo.dateRange.start.toISOString()}&timeMax=${queryInfo.dateRange.end.toISOString()}`
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Calendar API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Events found for availability analysis:', data.items?.length || 0);
+    
+    removeThinkingMessage();
+    
+    // Parse meeting duration
+    const durationMatch = queryInfo.meetingDuration.match(/(\d+)\s+(minute|hour)/i);
+    let durationMinutes = 30; // default
+    if (durationMatch) {
+      const amount = parseInt(durationMatch[1]);
+      const unit = durationMatch[2].toLowerCase();
+      durationMinutes = unit === 'hour' ? amount * 60 : amount;
+    }
+    
+    // For now, provide a helpful message about scheduling
+    const calendarOwner = targetCalendar.summary || queryInfo.person;
+    const timeDesc = formatDateRange(queryInfo.dateRange);
+    
+    addMessage(`I found ${data.items?.length || 0} existing events for **${calendarOwner}** ${timeDesc}. For detailed availability analysis and scheduling, you might want to check their calendar directly or use a scheduling tool like Calendly.`, 'assistant');
+    
+  } catch (error) {
+    console.error('Error finding available time slots:', error);
+    removeThinkingMessage();
+    addMessage(`Sorry, I couldn't analyze availability for ${queryInfo.person}. Error: ${error.message}`, 'assistant');
+  }
 }
 
 async function checkPersonAvailability(queryInfo) {
