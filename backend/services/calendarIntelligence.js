@@ -150,7 +150,16 @@ Provide recommendations in this format:
       });
 
       const content = response.choices[0].message.content.trim();
-      const analysisResult = JSON.parse(content);
+      console.log('OpenAI raw response:', content);
+      
+      // Extract JSON from response (in case there's extra text)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('No JSON found in OpenAI response:', content);
+        throw new Error('OpenAI did not return valid JSON format');
+      }
+      
+      const analysisResult = JSON.parse(jsonMatch[0]);
 
       // Map back any anonymized data to original context
       return this.mapAnalysisToOriginalContext(analysisResult, options);
