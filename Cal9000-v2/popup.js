@@ -744,19 +744,11 @@ async function displayAvailabilitySlots(analysisResult, queryInfo) {
       // Assume 30-minute duration if not specified
       const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
       
-      // Format date as MM.DD.YY
-      const month = String(startTime.getMonth() + 1).padStart(2, '0');
-      const day = String(startTime.getDate()).padStart(2, '0');
-      const year = String(startTime.getFullYear()).slice(-2);
-      const dateStr = `${month}.${day}.${year}`;
+      // Format using standardized functions
+      const dateStr = formatDateShortNoBrackets(startTime);
+      const timeRange = formatEventTimeRange(startTime, endTime);
       
-      // Use timezone from calendar events if available, default to PST
-      const timeZone = 'America/Los_Angeles'; // Default to PST, could be made dynamic later
-      
-      const startTimeStr = formatTimeWithZone(startTime, timeZone);
-      const endTimeStr = formatTimeWithZone(endTime, timeZone);
-      
-      message += `${dateStr} | ${startTimeStr} - ${endTimeStr}`;
+      message += `**${dateStr}** | ${timeRange}`;
       if (slot.confidence) {
         message += ` (${slot.confidence} confidence)`;
       }
@@ -2007,7 +1999,7 @@ function formatBusyPeriod(period) {
         if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
           const dateStr = formatDateShortNoBrackets(startDate);
           const timeRange = formatEventTimeRange(startDate, endDate);
-          return `**${dateStr}** | ${timeRange}`;
+          return `${dateStr} | ${timeRange}`;
         }
       }
       
@@ -2020,7 +2012,7 @@ function formatBusyPeriod(period) {
         if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
           const dateStr = formatDateShortNoBrackets(startDate);
           const timeRange = formatEventTimeRange(startDate, endDate);
-          return `**${dateStr}** | ${timeRange}`;
+          return `${dateStr} | ${timeRange}`;
         }
       }
       
@@ -2031,7 +2023,7 @@ function formatBusyPeriod(period) {
         if (parts.length >= 2) {
           const datePart = parts[0].trim();
           const timePart = parts.slice(1).join(':').trim();
-          return `**${datePart}** | ${timePart}`;
+          return `${datePart} | ${timePart}`;
         }
       }
     }
@@ -2152,7 +2144,7 @@ function formatDateRange(dateRange) {
     } else if (startDate.getTime() === tomorrowDate.getTime()) {
       return 'tomorrow';
     } else {
-      return `on ${startDate.toLocaleDateString()}`;
+      return `on **${startDate.toLocaleDateString()}**`;
     }
   }
   
@@ -2166,7 +2158,7 @@ function formatDateRange(dateRange) {
       return `over the next ${daysDiff} days`;
     }
   } else {
-    return `from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
+    return `from **${startDate.toLocaleDateString()}** to **${endDate.toLocaleDateString()}**`;
   }
 }
 
