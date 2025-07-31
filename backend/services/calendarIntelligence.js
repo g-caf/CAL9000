@@ -213,13 +213,15 @@ Analysis Tasks:
 1. Identify existing conflicts and busy periods
 2. Find 3-5 optimal time slots that:
    - Avoid back-to-back meetings
-   - Respect typical working hours
+   - STRICTLY respect business hours (9:00 AM - 5:00 PM only, NO times outside this range)
    - Consider meeting type appropriateness
    - Allow for buffer time
 3. Rank suggestions by preference considering:
    - Attendee availability patterns
    - Time of day effectiveness for meeting type
    - Calendar density/breathing room
+
+CRITICAL: Only suggest times between 9:00 AM and 5:00 PM. Never suggest times like 2:00 AM, 3:00 AM, or any time outside normal business hours.
 
 Provide recommendations in this format:
 {
