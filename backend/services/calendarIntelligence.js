@@ -259,7 +259,7 @@ Meeting Requirements:
 - Urgency: ${urgency}
 
 Analysis Tasks:
-1. Identify existing conflicts and busy periods
+1. Identify existing conflicts and busy periods - ONLY include actual scheduled events, not arbitrary time blocks
 2. Find 3-5 optimal time slots that:
    - Avoid back-to-back meetings
    - STRICTLY respect business hours (9:00 AM - 5:00 PM only, NO times outside this range)
@@ -273,6 +273,8 @@ Analysis Tasks:
 CRITICAL: 
 - Only suggest times between 9:00 AM and 5:00 PM. Never suggest times like 2:00 AM, 3:00 AM, or any time outside normal business hours.
 - Use ISO timestamp format for timeSlot (e.g., "2025-08-05T10:00:00-06:00"), not human-readable text.
+- For busyPeriods, use format "START_ISO to END_ISO" (e.g., "2025-08-05T09:00:00-06:00 to 2025-08-05T10:30:00-06:00")
+- Only include busyPeriods that are actual scheduled events from the calendar data, not made-up time blocks
 - Return ONLY valid JSON. No markdown formatting, no extra text, no code blocks.
 - Ensure all strings are properly quoted and all arrays/objects have correct syntax.
 
@@ -287,9 +289,9 @@ Provide recommendations in this exact JSON format:
     }
   ],
   "conflictAnalysis": {
-    "busyPeriods": ["list of busy time ranges"],
-    "availableWindows": ["list of available time windows"],
-    "optimalDayPattern": "analysis of best days/times"
+  "busyPeriods": ["2025-08-05T09:00:00-06:00 to 2025-08-05T10:30:00-06:00"],
+  "availableWindows": ["list of available time windows"],
+  "optimalDayPattern": "analysis of best days/times"
   },
   "schedulingInsights": [
     "key insights about scheduling patterns and preferences"

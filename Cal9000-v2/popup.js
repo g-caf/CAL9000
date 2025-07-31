@@ -2011,6 +2011,19 @@ function formatBusyPeriod(period) {
         }
       }
       
+      // Format: "2025-08-05T08:00:00-07:00/2025-08-05T08:45:00-07:00" (slash-separated)
+      if (period.includes('/')) {
+        const [startStr, endStr] = period.split('/');
+        const startDate = new Date(startStr.trim());
+        const endDate = new Date(endStr.trim());
+        
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+          const dateStr = formatDateShortNoBrackets(startDate);
+          const timeRange = formatEventTimeRange(startDate, endDate);
+          return `**${dateStr}** | ${timeRange}`;
+        }
+      }
+      
       // Format: "August 4, 2025: 9:00 AM - 4:50 PM" 
       if (period.includes(':') && (period.includes('AM') || period.includes('PM'))) {
         // For human-readable format, just clean it up and bold the date part
