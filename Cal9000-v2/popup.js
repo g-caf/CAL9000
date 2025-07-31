@@ -689,12 +689,17 @@ async function fetchCalendarEventsForAvailability(queryInfo) {
     throw new Error(`No calendar found for ${queryInfo.person || 'adrienne'}`);
   }
   
+  console.log('Target calendar found:', targetCalendar.id);
+  console.log('Date range:', queryInfo.dateRange);
+  
   const { timeMin, timeMax } = queryInfo.dateRange;
   
-  const response = await makeAuthorizedRequest(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
-    `timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`
-  );
+  const apiUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
+    `timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`;
+  
+  console.log('API URL:', apiUrl);
+  
+  const response = await makeAuthorizedRequest(apiUrl);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch calendar events: ${response.status}`);
