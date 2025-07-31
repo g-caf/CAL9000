@@ -221,14 +221,16 @@ Analysis Tasks:
    - Time of day effectiveness for meeting type
    - Calendar density/breathing room
 
-CRITICAL: Only suggest times between 9:00 AM and 5:00 PM. Never suggest times like 2:00 AM, 3:00 AM, or any time outside normal business hours.
+CRITICAL: 
+- Only suggest times between 9:00 AM and 5:00 PM. Never suggest times like 2:00 AM, 3:00 AM, or any time outside normal business hours.
+- Use ISO timestamp format for timeSlot (e.g., "2025-08-05T10:00:00-06:00"), not human-readable text.
 
 Provide recommendations in this format:
 {
   "recommendedTimes": [
     {
-      "timeSlot": "specific time recommendation",
-      "confidence": "high/medium/low",
+      "timeSlot": "2025-08-05T10:00:00-06:00",
+      "confidence": "high/medium/low", 
       "reasoning": "why this time works well",
       "considerations": ["potential issues or benefits"]
     }
