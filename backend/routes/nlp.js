@@ -109,6 +109,10 @@ router.post('/schedule', async (req, res) => {
 
 // Intelligent query routing endpoint
 router.post('/route', async (req, res) => {
+  console.log('=== NLP ROUTE CALLED ===', new Date().toISOString());
+  console.log('Request body keys:', Object.keys(req.body));
+  console.log('ForceIntelligentAnalysis:', req.body.forceIntelligentAnalysis);
+  
   try {
     const { 
       message, 
