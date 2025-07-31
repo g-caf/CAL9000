@@ -640,7 +640,7 @@ async function calculateAndDisplayAvailability(queryInfo, originalMessage) {
     const calendarEvents = await fetchCalendarEventsForAvailability(queryInfo);
     
     // Call backend intelligent analysis for availability calculation
-    const response = await fetch(`${BASE_URL}/api/nlp/route`, {
+    const response = await fetch('https://cal9000.onrender.com/api/nlp/route', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
