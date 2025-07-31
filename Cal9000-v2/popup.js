@@ -739,10 +739,7 @@ async function displayAvailabilitySlots(analysisResult, queryInfo) {
     }
     
     analysisResult.recommendedTimes.forEach((slot, index) => {
-      console.log('DEBUG: Raw timeSlot:', slot.timeSlot);
       const startTime = new Date(slot.timeSlot);
-      console.log('DEBUG: Parsed startTime:', startTime);
-      console.log('DEBUG: Year:', startTime.getFullYear(), 'Month:', startTime.getMonth() + 1, 'Date:', startTime.getDate());
       
       // Assume 30-minute duration if not specified
       const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);

@@ -243,8 +243,14 @@ function extractOptionsFromMessage(message, parsedData = null) {
         case 'friday':
         case 'saturday':
         case 'sunday':
-          // For day names, use the specific date calculation from frontend
-          options.timeRange = 'this_week'; // fallback
+          // For day names, calculate the next occurrence of that day
+          const nextDate = getNextDayOfWeek(parsedData.dateRange.toLowerCase());
+          if (nextDate) {
+            options.specificDate = nextDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+            console.log(`Mapped ${parsedData.dateRange} to specific date: ${options.specificDate}`);
+          } else {
+            options.timeRange = 'this_week'; // fallback
+          }
           break;
         default:
           options.timeRange = 'this_week';
@@ -266,6 +272,29 @@ function extractOptionsFromMessage(message, parsedData = null) {
   }
   
   return options;
+}
+
+// Helper function to get next occurrence of a day
+function getNextDayOfWeek(dayName) {
+  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const targetDayIndex = daysOfWeek.indexOf(dayName.toLowerCase());
+  
+  if (targetDayIndex === -1) return null;
+  
+  const today = new Date();
+  const currentDayIndex = today.getDay();
+  
+  // Calculate days until target day
+  let daysUntilTarget = targetDayIndex - currentDayIndex;
+  if (daysUntilTarget <= 0) {
+    daysUntilTarget += 7; // Get next week's occurrence
+  }
+  
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + daysUntilTarget);
+  targetDate.setHours(0, 0, 0, 0); // Start of day
+  
+  return targetDate;
 }
 
 module.exports = router;

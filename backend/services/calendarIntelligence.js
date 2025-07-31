@@ -197,7 +197,11 @@ class CalendarIntelligence {
       urgency = 'normal'
     } = options;
 
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
     const prompt = `As a scheduling expert, analyze this calendar data and find optimal meeting times.
+
+Current Date: ${currentDate}
 
 Calendar Events (anonymized):
 ${JSON.stringify(safeEvents, null, 2)}
