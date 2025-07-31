@@ -490,6 +490,8 @@ function parseCalendarQuery(message) {
   
   // Check if this is a scheduling request (finding available time slots)
   const schedulingPatterns = [
+    /find\s+(\d+)\s+(minute|hour)s?\s+for\s+(?:a\s+)?(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
+    /(?:can you )?help.*find\s+(\d+)\s+(minute|hour)s?\s+for\s+(?:a\s+)?(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
     /find time for (?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)(?:\s+(?:next|this)\s+week)?/i,
     /(?:can you )?help.*find time for (?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
     /(?:when can|can)\s+(?:i|we)\s+(?:meet|schedule|have)\s+(?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9]+)/i,
@@ -610,7 +612,7 @@ function parseCalendarQuery(message) {
         const candidate = match[1].toLowerCase();
         
         // Skip common words that aren't names (but don't skip sqs, quinn, adrienne)
-        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'my', 'i', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call', '1', '2', '3', '4', '5'];
+        const skipWords = ['what', 'show', 'get', 'find', 'is', 'are', 'me', 'my', 'i', 'the', 'at', 'on', 'in', 'to', 'for', 'with', 'tomorrow', 'today', 'week', 'events', 'calendar', 'schedule', 'doing', 'free', 'available', 'busy', 'availability', 'do', 'you', 'know', 'next', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'when', 'meeting', 'call', '1', '2', '3', '4', '5', 'a', 'an', 'help', 'can', 'minutes', 'minute', 'hour', 'hours'];
         
         // Skip single digits/numbers that might be from "1:1", "2:1" etc.
         if (candidate.match(/^\d+$/)) {
