@@ -32,18 +32,88 @@ class CalendarIntelligence {
   }
 
   /**
+   * Filter events to only those relevant for scheduling analysis
+   */
+  filterRelevantEvents(events, options = {}) {
+    const now = new Date();
+    const { timeRange = 'this_week' } = options;
+    
+    // Calculate time bounds based on request
+    let startBound, endBound;
+    
+    switch (timeRange) {
+      case 'today':
+        startBound = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endBound = new Date(startBound.getTime() + 24 * 60 * 60 * 1000);
+        break;
+      case 'tomorrow':
+        startBound = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        endBound = new Date(startBound.getTime() + 24 * 60 * 60 * 1000);
+        break;
+      case 'this_week':
+        const dayOfWeek = now.getDay();
+        startBound = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+        endBound = new Date(startBound.getTime() + 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'next_week':
+        const nextWeekStart = new Date(now.getTime() + (7 - now.getDay()) * 24 * 60 * 60 * 1000);
+        startBound = nextWeekStart;
+        endBound = new Date(nextWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        // Default to 2 weeks from now
+        startBound = now;
+        endBound = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    }
+
+    console.log(`Filtering events between ${startBound.toISOString()} and ${endBound.toISOString()}`);
+
+    return events.filter(event => {
+      // Skip events without proper time data
+      if (!event.start) return false;
+      
+      const eventStart = new Date(event.start.dateTime || event.start.date);
+      const eventEnd = new Date(event.end?.dateTime || event.end?.date || eventStart);
+      
+      // Only include events that overlap with our time range
+      const overlaps = eventStart < endBound && eventEnd > startBound;
+      if (!overlaps) return false;
+      
+      // Skip declined meetings
+      if (event.attendees) {
+        const userAttendee = event.attendees.find(a => a.self);
+        if (userAttendee && userAttendee.responseStatus === 'declined') {
+          return false;
+        }
+      }
+      
+      // Skip transparent events (they don't block time)
+      if (event.transparency === 'transparent') {
+        return false;
+      }
+      
+      // Skip cancelled events
+      if (event.status === 'cancelled') {
+        return false;
+      }
+      
+      return true;
+    });
+  }
+
+  /**
    * Main entry point for calendar intelligence
    */
   async analyzeCalendarData(events, analysisType, options = {}) {
     console.log(`Starting ${analysisType} analysis for ${events.length} events`);
     
-    // Limit events to reduce token usage (take most recent 20 events)
-    const limitedEvents = events.slice(0, 20);
-    console.log(`Limited to ${limitedEvents.length} events to reduce token usage`);
+    // Filter events by time relevance and scheduling impact
+    const relevantEvents = this.filterRelevantEvents(events, options);
+    console.log(`Filtered to ${relevantEvents.length} relevant events (from ${events.length})`);
     
     // Sanitize calendar data for AI processing
-    console.log('Raw events sample:', JSON.stringify(limitedEvents[0], null, 2));
-    const safeData = this.sanitizer.createMinimalSafeData(limitedEvents, options);
+    console.log('Raw events sample:', JSON.stringify(relevantEvents[0], null, 2));
+    const safeData = this.sanitizer.createMinimalSafeData(relevantEvents, options);
     console.log('Sanitized data sample:', JSON.stringify(safeData[0], null, 2));
     
     // Validate data safety before sending to OpenAI
@@ -61,7 +131,7 @@ class CalendarIntelligence {
       }
     }
 
-    console.log(`Sanitized ${limitedEvents.length} events to ${safeData.length} safe records`);
+    console.log(`Sanitized ${relevantEvents.length} events to ${safeData.length} safe records`);
 
     switch (analysisType) {
       case 'conflict_resolution':

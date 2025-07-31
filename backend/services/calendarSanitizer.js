@@ -280,11 +280,11 @@ class CalendarSanitizer {
    * Create minimal safe data for OpenAI
    */
   createMinimalSafeData(events, options = {}) {
+    // For AI analysis, only include essential scheduling fields
     const allowedFields = [
-      'start', 'end', 'summary', 'description', 'location',
-      'attendees', 'recurrence', 'status', 'transparency',
-      'visibility', 'created', 'updated', 'creator', 'organizer',
-      'extendedProperties'
+      'start', 'end', 'summary', // Keep summary for meeting context
+      'attendees', 'status', 'transparency' // Essential for availability calculation
+      // Removed: description, location, extendedProperties, created, updated, creator, organizer, visibility, recurrence
     ];
 
     return events.map(event => {
@@ -297,14 +297,12 @@ class CalendarSanitizer {
         }
       });
 
-      // Add semantic metadata for analysis (using sanitized data)
+      // Add compact metadata for analysis
       minimal.metadata = {
-        hasAttendees: !!(sanitizedEvent.attendees && sanitizedEvent.attendees.length > 0),
-        isRecurring: !!(sanitizedEvent.recurrence && sanitizedEvent.recurrence.length > 0),
         duration: this.calculateDuration(sanitizedEvent.start, sanitizedEvent.end),
         attendeeCount: sanitizedEvent.attendees ? sanitizedEvent.attendees.length : 0,
-        isAllDay: !!(sanitizedEvent.start && sanitizedEvent.start.date), // vs dateTime
-        dayOfWeek: sanitizedEvent.start ? new Date(sanitizedEvent.start.dateTime || sanitizedEvent.start.date).getDay() : null
+        isAllDay: !!(sanitizedEvent.start && sanitizedEvent.start.date) // vs dateTime
+        // Removed: hasAttendees, isRecurring, dayOfWeek (can be calculated if needed)
       };
 
       return minimal;
