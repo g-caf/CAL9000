@@ -716,33 +716,17 @@ async function fetchCalendarEventsForAvailability(queryInfo) {
  * Display available time slots
  */
 async function displayAvailabilitySlots(analysisResult, queryInfo) {
-  let message = `🗓️ **Available Time Slots:**\n\n`;
+  let message = '';
   
   if (analysisResult.recommendedTimes && analysisResult.recommendedTimes.length > 0) {
     analysisResult.recommendedTimes.forEach((slot, index) => {
-      message += `${index + 1}. **${slot.timeSlot}**\n`;
-      message += `   Confidence: ${slot.confidence}\n`;
-      if (slot.reasoning) {
-        message += `   ${slot.reasoning}\n`;
-      }
-      message += '\n';
+      message += `${slot.timeSlot}\n`;
     });
-    
-    if (queryInfo.meetingDuration) {
-      message += `💡 **Duration requested:** ${queryInfo.meetingDuration}\n\n`;
-    }
-    
-    if (analysisResult.schedulingInsights && analysisResult.schedulingInsights.length > 0) {
-      message += `📋 **Scheduling Insights:**\n`;
-      analysisResult.schedulingInsights.forEach(insight => {
-        message += `• ${insight}\n`;
-      });
-    }
   } else {
-    message = `No available time slots found for the requested criteria. Try:\n• Expanding the time range\n• Reducing meeting duration\n• Checking a different day`;
+    message = 'No available time slots found.';
   }
   
-  addMessage(message, 'assistant');
+  addMessage(message.trim(), 'assistant');
 }
 
 /**
