@@ -133,10 +133,15 @@ router.post('/route', async (req, res) => {
     // Force intelligent analysis if requested (for availability calculations)
     if (forceIntelligentAnalysis && analysisType && calendarEvents) {
       console.log(`Forcing intelligent analysis: ${analysisType}`);
+      
+      // Parse the message first to get date information
+      const parsedQuery = await parseCalendarQuery(message);
+      console.log('Parsed query for forced analysis:', parsedQuery);
+      
       routing = {
         type: 'intelligence',
         analysisType: analysisType,
-        options: extractOptionsFromMessage(message), // Extract duration, etc.
+        options: extractOptionsFromMessage(message, parsedQuery), // Extract duration, date, etc.
         requiresCalendarData: true
       };
       
@@ -184,8 +189,8 @@ router.post('/route', async (req, res) => {
   }
 });
 
-// Helper function to extract options from message for forced analysis
-function extractOptionsFromMessage(message) {
+// Helper function to extract options from message and parsed data for forced analysis
+function extractOptionsFromMessage(message, parsedData = null) {
   const options = {};
   
   // Extract duration
@@ -210,17 +215,54 @@ function extractOptionsFromMessage(message) {
   // Set attendee count (for availability queries, typically 2 people)
   options.attendeeCount = 2;
   
-  // Set time range
-  if (message.toLowerCase().includes('next week')) {
-    options.timeRange = 'next_week';
-  } else if (message.toLowerCase().includes('this week')) {
-    options.timeRange = 'this_week';
-  } else if (message.toLowerCase().includes('tomorrow')) {
-    options.timeRange = 'tomorrow';
-  } else if (message.toLowerCase().includes('today')) {
-    options.timeRange = 'today';
+  // Use parsed date information if available
+  if (parsedData && parsedData.dateRange) {
+    // Check if it's an ISO date
+    if (parsedData.dateRange.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      options.specificDate = parsedData.dateRange;
+      console.log(`Using parsed specific date: ${options.specificDate}`);
+    } else {
+      // Map parsed time ranges to our internal format
+      switch (parsedData.dateRange.toLowerCase()) {
+        case 'today':
+          options.timeRange = 'today';
+          break;
+        case 'tomorrow':
+          options.timeRange = 'tomorrow';
+          break;
+        case 'next week':
+          options.timeRange = 'next_week';
+          break;
+        case 'this week':
+          options.timeRange = 'this_week';
+          break;
+        case 'monday':
+        case 'tuesday':
+        case 'wednesday':
+        case 'thursday':
+        case 'friday':
+        case 'saturday':
+        case 'sunday':
+          // For day names, use the specific date calculation from frontend
+          options.timeRange = 'this_week'; // fallback
+          break;
+        default:
+          options.timeRange = 'this_week';
+      }
+    }
   } else {
-    options.timeRange = 'this_week';
+    // Fallback to simple string matching
+    if (message.toLowerCase().includes('next week')) {
+      options.timeRange = 'next_week';
+    } else if (message.toLowerCase().includes('this week')) {
+      options.timeRange = 'this_week';
+    } else if (message.toLowerCase().includes('tomorrow')) {
+      options.timeRange = 'tomorrow';
+    } else if (message.toLowerCase().includes('today')) {
+      options.timeRange = 'today';
+    } else {
+      options.timeRange = 'this_week';
+    }
   }
   
   return options;

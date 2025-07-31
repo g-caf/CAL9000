@@ -36,69 +36,97 @@ class CalendarIntelligence {
    */
   filterRelevantEvents(events, options = {}) {
     const now = new Date();
-    const { timeRange = 'this_week' } = options;
+    const { timeRange = 'this_week', specificDate } = options;
     
     // Calculate time bounds based on request
     let startBound, endBound;
     
-    switch (timeRange) {
-      case 'today':
-        startBound = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        endBound = new Date(startBound.getTime() + 24 * 60 * 60 * 1000);
-        break;
-      case 'tomorrow':
-        startBound = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        endBound = new Date(startBound.getTime() + 24 * 60 * 60 * 1000);
-        break;
-      case 'this_week':
-        const dayOfWeek = now.getDay();
-        startBound = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
-        endBound = new Date(startBound.getTime() + 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'next_week':
-        const nextWeekStart = new Date(now.getTime() + (7 - now.getDay()) * 24 * 60 * 60 * 1000);
-        startBound = nextWeekStart;
-        endBound = new Date(nextWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        // Default to 2 weeks from now
-        startBound = now;
-        endBound = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    // Handle specific ISO dates first
+    if (specificDate && specificDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      console.log(`Using specific date: ${specificDate}`);
+      startBound = new Date(specificDate + 'T00:00:00');
+      endBound = new Date(specificDate + 'T23:59:59');
+    } else {
+      switch (timeRange) {
+        case 'today':
+          startBound = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          endBound = new Date(startBound.getTime() + 24 * 60 * 60 * 1000);
+          break;
+        case 'tomorrow':
+          startBound = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+          endBound = new Date(startBound.getTime() + 24 * 60 * 60 * 1000);
+          break;
+        case 'this_week':
+          const dayOfWeek = now.getDay();
+          startBound = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+          endBound = new Date(startBound.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'next_week':
+          const nextWeekStart = new Date(now.getTime() + (7 - now.getDay()) * 24 * 60 * 60 * 1000);
+          startBound = nextWeekStart;
+          endBound = new Date(nextWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          // Default to 2 weeks from now
+          startBound = now;
+          endBound = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      }
     }
 
     console.log(`Filtering events between ${startBound.toISOString()} and ${endBound.toISOString()}`);
 
-    return events.filter(event => {
+    const filteredEvents = events.filter((event, index) => {
       // Skip events without proper time data
-      if (!event.start) return false;
+      if (!event.start) {
+        console.log(`Event ${index}: Skipped - no start time`);
+        return false;
+      }
       
       const eventStart = new Date(event.start.dateTime || event.start.date);
       const eventEnd = new Date(event.end?.dateTime || event.end?.date || eventStart);
       
+      // Debug event dates
+      if (index < 3) { // Log first few events for debugging
+        console.log(`Event ${index}: ${event.summary || 'No title'}`);
+        console.log(`  Start: ${eventStart.toISOString()}`);
+        console.log(`  End: ${eventEnd.toISOString()}`);
+        console.log(`  Filter range: ${startBound.toISOString()} to ${endBound.toISOString()}`);
+      }
+      
       // Only include events that overlap with our time range
       const overlaps = eventStart < endBound && eventEnd > startBound;
-      if (!overlaps) return false;
+      if (!overlaps) {
+        if (index < 3) console.log(`  -> Skipped: No overlap`);
+        return false;
+      }
       
       // Skip declined meetings
       if (event.attendees) {
         const userAttendee = event.attendees.find(a => a.self);
         if (userAttendee && userAttendee.responseStatus === 'declined') {
+          if (index < 3) console.log(`  -> Skipped: Declined meeting`);
           return false;
         }
       }
       
       // Skip transparent events (they don't block time)
       if (event.transparency === 'transparent') {
+        if (index < 3) console.log(`  -> Skipped: Transparent event`);
         return false;
       }
       
       // Skip cancelled events
       if (event.status === 'cancelled') {
+        if (index < 3) console.log(`  -> Skipped: Cancelled event`);
         return false;
       }
       
+      if (index < 3) console.log(`  -> Included in analysis`);
       return true;
     });
+    
+    console.log(`DEBUG: Filtered ${filteredEvents.length} events from ${events.length} total`);
+    return filteredEvents;
   }
 
   /**
