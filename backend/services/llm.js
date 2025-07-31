@@ -35,18 +35,24 @@ INTENT CLASSIFICATION RULES:
 - "schedule", "book", "set up meeting" → "schedule_meeting" (intelligent scheduling)
 - "my calendar", general queries → "calendar_view" (show overview)
 
+DATE PARSING RULES:
+- For specific dates like "Monday, August 4th" or "August 4th", return the ISO date: "2025-08-04"
+- For relative dates: "today", "tomorrow", "next week", "this week"
+- For day names without dates: "monday" → find next Monday
+- For month/day: "8/4" → "2025-08-04"
+
 Examples:
-- "Find 30 minutes tomorrow" → "intent": "find_availability", "needsAvailabilityCalculation": true
-- "What's my availability on Monday?" → "intent": "find_availability", "needsAvailabilityCalculation": true  
-- "Show my meetings today" → "intent": "show_events", "needsAvailabilityCalculation": false
-- "What is quinn doing tomorrow?" → "intent": "show_events", "person": "sqs", "needsAvailabilityCalculation": false
+- "Find 30 minutes tomorrow" → "intent": "find_availability", "dateRange": "tomorrow", "needsAvailabilityCalculation": true
+- "What's my availability on Monday?" → "intent": "find_availability", "dateRange": "monday", "needsAvailabilityCalculation": true  
+- "When is Carly available on Monday, August 4th?" → "intent": "find_availability", "person": "sqs", "dateRange": "2025-08-04", "needsAvailabilityCalculation": true
+- "Show my meetings today" → "intent": "show_events", "dateRange": "today", "needsAvailabilityCalculation": false
 
 Return only valid JSON:
 {
   "intent": "find_availability|show_events|schedule_meeting|calendar_view",
   "person": "sqs|adrienne|null",
   "duration": "30 minutes|1 hour|null", 
-  "dateRange": "today|tomorrow|next week|this week|null",
+  "dateRange": "today|tomorrow|next week|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|YYYY-MM-DD|null",
   "meetingType": "1:1|sync|standup|call|meeting|null",
   "companyName": "company name|null",
   "isPersonalQuery": true/false,
@@ -126,6 +132,12 @@ function fallbackParsing(message) {
   else if (lowerMessage.includes('tomorrow')) dateRange = 'tomorrow';
   else if (lowerMessage.includes('today')) dateRange = 'today';
   else if (lowerMessage.includes('monday')) dateRange = 'monday';
+  else if (lowerMessage.includes('tuesday')) dateRange = 'tuesday';
+  else if (lowerMessage.includes('wednesday')) dateRange = 'wednesday';
+  else if (lowerMessage.includes('thursday')) dateRange = 'thursday';
+  else if (lowerMessage.includes('friday')) dateRange = 'friday';
+  else if (lowerMessage.includes('saturday')) dateRange = 'saturday';
+  else if (lowerMessage.includes('sunday')) dateRange = 'sunday';
   
   return {
     intent,

@@ -850,7 +850,8 @@ function convertLLMResultToQueryInfo(llmResult, originalMessage) {
   
   // Parse date range
   if (llmResult.dateRange) {
-    switch (llmResult.dateRange.toLowerCase()) {
+    const dateRangeLower = llmResult.dateRange.toLowerCase();
+    switch (dateRangeLower) {
       case 'today':
         dateRange = getTodayRange();
         break;
@@ -863,9 +864,22 @@ function convertLLMResultToQueryInfo(llmResult, originalMessage) {
       case 'this week':
         dateRange = getThisWeekRange();
         break;
+      case 'monday':
+      case 'tuesday':
+      case 'wednesday':
+      case 'thursday':
+      case 'friday':
+      case 'saturday':
+      case 'sunday':
+        dateRange = getNextDayRange(dateRangeLower);
+        break;
       default:
-        // Try to parse specific dates
-        dateRange = parseSpecificDate(llmResult.dateRange) || getNext30DaysRange();
+        // Check if it's an ISO date or try to parse specific dates
+        if (llmResult.dateRange.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          dateRange = parseISODate(llmResult.dateRange);
+        } else {
+          dateRange = parseSpecificDate(llmResult.dateRange) || getNext30DaysRange();
+        }
     }
   }
   
@@ -1093,6 +1107,55 @@ function parseSpecificDate(dateStr) {
   }
   
   return null;
+}
+
+function parseISODate(isoDateStr) {
+  console.log('Parsing ISO date string:', isoDateStr);
+  
+  try {
+    const targetDate = new Date(isoDateStr + 'T00:00:00');
+    
+    const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    
+    console.log('Parsed ISO date range:', start, 'to', end);
+    return { start, end };
+  } catch (error) {
+    console.error('Error parsing ISO date:', error);
+    return null;
+  }
+}
+
+function getNextDayRange(dayName) {
+  console.log('Finding next occurrence of:', dayName);
+  
+  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const targetDayIndex = daysOfWeek.indexOf(dayName.toLowerCase());
+  
+  if (targetDayIndex === -1) {
+    console.error('Invalid day name:', dayName);
+    return getThisWeekRange();
+  }
+  
+  const today = new Date();
+  const currentDayIndex = today.getDay();
+  
+  // Calculate days until target day
+  let daysUntilTarget = targetDayIndex - currentDayIndex;
+  if (daysUntilTarget <= 0) {
+    daysUntilTarget += 7; // Get next week's occurrence
+  }
+  
+  const targetDate = new Date(today);
+  targetDate.setDate(today.getDate() + daysUntilTarget);
+  
+  const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  
+  console.log(`Next ${dayName}:`, start.toDateString());
+  return { start, end };
 }
 
 function getSpecificTimeRange(baseRange, timeStr, timezone) {
