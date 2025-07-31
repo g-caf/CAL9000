@@ -331,12 +331,14 @@ class CalendarSanitizer {
    * Validate that data is safe for external processing
    */
   validateSafety(data) {
+    console.log('DEBUG: Validating safety for data:', JSON.stringify(data, null, 2).substring(0, 1000));
     const issues = [];
     
     const checkForUnsafeData = (obj, path = '') => {
       if (typeof obj === 'string') {
         // Check for email patterns
         if (obj.includes('@') && !obj.includes('PERSON_') && !obj.includes('_ORG_')) {
+          console.log('DEBUG: Found unsafe email:', obj, 'at path:', path);
           issues.push(`Potential email found at ${path}: ${obj.substring(0, 30)}...`);
         }
         
