@@ -641,7 +641,8 @@ async function parseCalendarQuery(message) {
     const response = await fetch('https://cal9000.onrender.com/api/nlp/route', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Extension-ID': chrome.runtime.id
       },
       body: JSON.stringify({ 
         message,
