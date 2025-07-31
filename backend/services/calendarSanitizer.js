@@ -222,6 +222,26 @@ class CalendarSanitizer {
     const text = typeof data === 'string' ? data : JSON.stringify(data);
     const textLower = text.toLowerCase();
     
+    // Check for emails
+    if (text.includes('@') && !text.includes('PERSON_') && !text.includes('_ORG_')) {
+      return true;
+    }
+    
+    // Check for phone numbers
+    if (/\+?1?[-.\s]?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(text)) {
+      return true;
+    }
+    
+    // Check for URLs
+    if (/https?:\/\//.test(text)) {
+      return true;
+    }
+    
+    // Check for meeting IDs (long number sequences)
+    if (/\b\d{9,}\b/.test(text)) {
+      return true;
+    }
+    
     // Check for sensitive keywords
     const hasSensitiveKeywords = this.sensitiveKeywords.some(keyword => 
       textLower.includes(keyword)
