@@ -277,14 +277,14 @@ class CalendarSanitizer {
         }
       });
 
-      // Add semantic metadata for analysis
+      // Add semantic metadata for analysis (using sanitized data)
       minimal.metadata = {
-        hasAttendees: !!(event.attendees && event.attendees.length > 0),
-        isRecurring: !!(event.recurrence && event.recurrence.length > 0),
-        duration: this.calculateDuration(event.start, event.end),
-        attendeeCount: event.attendees ? event.attendees.length : 0,
-        isAllDay: !!(event.start && event.start.date), // vs dateTime
-        dayOfWeek: event.start ? new Date(event.start.dateTime || event.start.date).getDay() : null
+        hasAttendees: !!(sanitizedEvent.attendees && sanitizedEvent.attendees.length > 0),
+        isRecurring: !!(sanitizedEvent.recurrence && sanitizedEvent.recurrence.length > 0),
+        duration: this.calculateDuration(sanitizedEvent.start, sanitizedEvent.end),
+        attendeeCount: sanitizedEvent.attendees ? sanitizedEvent.attendees.length : 0,
+        isAllDay: !!(sanitizedEvent.start && sanitizedEvent.start.date), // vs dateTime
+        dayOfWeek: sanitizedEvent.start ? new Date(sanitizedEvent.start.dateTime || sanitizedEvent.start.date).getDay() : null
       };
 
       return minimal;
