@@ -692,7 +692,9 @@ async function fetchCalendarEventsForAvailability(queryInfo) {
   console.log('Target calendar found:', targetCalendar.id);
   console.log('Date range:', queryInfo.dateRange);
   
-  const { timeMin, timeMax } = queryInfo.dateRange;
+  const { start, end } = queryInfo.dateRange;
+  const timeMin = start.toISOString();
+  const timeMax = end.toISOString();
   
   const apiUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
     `timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`;
