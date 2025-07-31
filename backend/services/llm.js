@@ -22,12 +22,14 @@ async function parseCalendarQuery(message) {
 Query: "${message}"
 
 CRITICAL MAPPING RULES (follow exactly):
-- "quinn" → "sqs" (always!)
+- "quinn" → "sqs" (ONLY Quinn, not other names!)
 - "sqs" → "sqs" 
 - "sg" → "sqs"
 - "my" → "adrienne"
 - "me" → "adrienne" 
 - "i" → "adrienne"
+- "carly" → "carly" (keep as-is, different person than Quinn)
+- For any other person names, keep them as-is (don't map to sqs)
 
 INTENT CLASSIFICATION RULES:
 - "find", "available", "free time", "open slots", "when can" → "find_availability" (calculate free time slots)
@@ -44,13 +46,14 @@ DATE PARSING RULES:
 Examples:
 - "Find 30 minutes tomorrow" → "intent": "find_availability", "dateRange": "tomorrow", "needsAvailabilityCalculation": true
 - "What's my availability on Monday?" → "intent": "find_availability", "dateRange": "monday", "needsAvailabilityCalculation": true  
-- "When is Carly available on Monday, August 4th?" → "intent": "find_availability", "person": "sqs", "dateRange": "2025-08-04", "needsAvailabilityCalculation": true
+- "When is Carly available on Monday, August 4th?" → "intent": "find_availability", "person": "carly", "dateRange": "2025-08-04", "needsAvailabilityCalculation": true
+- "When is Quinn free tomorrow?" → "intent": "find_availability", "person": "sqs", "dateRange": "tomorrow", "needsAvailabilityCalculation": true
 - "Show my meetings today" → "intent": "show_events", "dateRange": "today", "needsAvailabilityCalculation": false
 
 Return only valid JSON:
 {
   "intent": "find_availability|show_events|schedule_meeting|calendar_view",
-  "person": "sqs|adrienne|null",
+  "person": "sqs|adrienne|carly|[any person name]|null",
   "duration": "30 minutes|1 hour|null", 
   "dateRange": "today|tomorrow|next week|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|YYYY-MM-DD|null",
   "meetingType": "1:1|sync|standup|call|meeting|null",
