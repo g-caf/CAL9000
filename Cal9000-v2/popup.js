@@ -677,11 +677,22 @@ async function calculateAndDisplayAvailability(queryInfo, originalMessage) {
  * Fetch calendar events specifically for availability calculation
  */
 async function fetchCalendarEventsForAvailability(queryInfo) {
-  const calendarId = getCalendarIdForPerson(queryInfo.person || 'adrienne');
+  // Get calendar list to find the right person's calendar
+  const calendars = await chrome.storage.local.get('calendars');
+  if (!calendars.calendars) {
+    throw new Error('No calendars available. Please refresh the extension.');
+  }
+  
+  // Find the target calendar
+  const targetCalendar = findPersonCalendar(queryInfo.person || 'adrienne', calendars.calendars);
+  if (!targetCalendar) {
+    throw new Error(`No calendar found for ${queryInfo.person || 'adrienne'}`);
+  }
+  
   const { timeMin, timeMax } = queryInfo.dateRange;
   
   const response = await makeAuthorizedRequest(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?` +
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendar.id)}/events?` +
     `timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`
   );
 
