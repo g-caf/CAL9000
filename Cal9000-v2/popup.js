@@ -719,9 +719,58 @@ async function displayAvailabilitySlots(analysisResult, queryInfo) {
   let message = '';
   
   if (analysisResult.recommendedTimes && analysisResult.recommendedTimes.length > 0) {
+    // Check if the recommended times are for the requested date or alternative dates
+    const requestedDate = queryInfo.dateRange?.start;
+    const firstSlotDate = new Date(analysisResult.recommendedTimes[0].timeSlot);
+    
+    // Check if we're showing alternative dates
+    const isAlternativeDate = requestedDate && 
+      firstSlotDate.toDateString() !== requestedDate.toDateString();
+    
+    if (isAlternativeDate) {
+      // Format the requested date nicely
+      const requestedDateStr = requestedDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      message += `No availability found on ${requestedDateStr}. Here are some alternative times:\n\n`;
+    }
+    
     analysisResult.recommendedTimes.forEach((slot, index) => {
-      message += `${slot.timeSlot}\n`;
+      const startTime = new Date(slot.timeSlot);
+      
+      // Assume 30-minute duration if not specified
+      const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
+      
+      // Format date as MM.DD.YY
+      const month = String(startTime.getMonth() + 1).padStart(2, '0');
+      const day = String(startTime.getDate()).padStart(2, '0');
+      const year = String(startTime.getFullYear()).slice(-2);
+      const dateStr = `${month}.${day}.${year}`;
+      
+      // Use timezone from calendar events if available, default to PST
+      const timeZone = 'America/Los_Angeles'; // Default to PST, could be made dynamic later
+      
+      const startTimeStr = formatTimeWithZone(startTime, timeZone);
+      const endTimeStr = formatTimeWithZone(endTime, timeZone);
+      
+      message += `${dateStr} | ${startTimeStr} - ${endTimeStr}`;
+      if (slot.confidence) {
+        message += ` (${slot.confidence} confidence)`;
+      }
+      message += '\n';
     });
+    
+    // Add conflict analysis if available
+    if (analysisResult.conflictAnalysis?.busyPeriods?.length > 0) {
+      message += '\n📅 **Busy periods:**\n';
+      analysisResult.conflictAnalysis.busyPeriods.forEach(period => {
+        message += `• ${period}\n`;
+      });
+    }
+    
   } else {
     message = 'No available time slots found.';
   }
@@ -1668,11 +1717,13 @@ async function checkPersonAvailability(queryInfo) {
           const conflictsList = conflictingEvents.map(event => {
             const start = event.start.dateTime || event.start.date;
             const end = event.end.dateTime || event.end.date;
-            const startTime = new Date(start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const endTime = new Date(end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            const eventTimeZone = event.start.timeZone || event.end?.timeZone;
+            const timeRange = formatEventTimeRange(startDate, endDate, eventTimeZone);
             const title = event.summary || 'No title';
             
-            return `${startTime}-${endTime}: ${title}`;
+            return `${timeRange}: ${title}`;
           }).join('\n');
           
           addMessage(`**${calendarOwner}** is **NOT available** ${timeDesc}\n\n**Conflicts:**\n${conflictsList}`, 'assistant');
@@ -1681,11 +1732,13 @@ async function checkPersonAvailability(queryInfo) {
           const otherEventsList = relevantEvents.map(event => {
             const start = event.start.dateTime || event.start.date;
             const end = event.end.dateTime || event.end.date;
-            const startTime = new Date(start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const endTime = new Date(end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            const eventTimeZone = event.start.timeZone || event.end?.timeZone;
+            const timeRange = formatEventTimeRange(startDate, endDate, eventTimeZone);
             const title = event.summary || 'No title';
             
-            return `${startTime}-${endTime}: ${title}`;
+            return `${timeRange}: ${title}`;
           }).join('\n');
           
           addMessage(`**${calendarOwner}** is **AVAILABLE** ${timeDesc}\n\n**Other events that day:**\n${otherEventsList}`, 'assistant');
@@ -1901,15 +1954,18 @@ function formatDateShortNoBrackets(date) {
   return `${month}.${day}.${year}`;
 }
 
-function formatTimeWithZone(date) {
-  const timeStr = date.toLocaleTimeString([], {
-    hour: '2-digit', 
+function formatTimeWithZone(date, timeZone = null) {
+  // Use the timezone from the event/calendar, or default to user's timezone
+  const targetTimeZone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric', 
     minute: '2-digit',
-    hour12: true
-  });
+    hour12: true,
+    timeZone: targetTimeZone
+  }).replace(' ', ''); // Remove space between time and AM/PM
   
   // Get timezone abbreviation
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const tzMap = {
     'America/New_York': 'EST',
     'America/Chicago': 'CST', 
@@ -1919,8 +1975,20 @@ function formatTimeWithZone(date) {
     'Pacific/Honolulu': 'HST'
   };
   
-  const tzAbbr = tzMap[timeZone] || 'UTC';
+  const tzAbbr = tzMap[targetTimeZone] || 'PST'; // Default to PST
   return `${timeStr} ${tzAbbr}`;
+}
+
+function formatEventTimeRange(startDate, endDate, timeZone = null) {
+  const startTime = formatTimeWithZone(startDate, timeZone);
+  const endTime = formatTimeWithZone(endDate, timeZone);
+  return `${startTime} - ${endTime}`;
+}
+
+function formatFullEventTime(startDate, endDate, timeZone = null) {
+  const dateStr = formatDateShortNoBrackets(startDate);
+  const timeRange = formatEventTimeRange(startDate, endDate, timeZone);
+  return `${dateStr} | ${timeRange}`;
 }
 
 function filterAndSortEvents(events) {
