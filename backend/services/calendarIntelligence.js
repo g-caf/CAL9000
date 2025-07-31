@@ -37,9 +37,13 @@ class CalendarIntelligence {
   async analyzeCalendarData(events, analysisType, options = {}) {
     console.log(`Starting ${analysisType} analysis for ${events.length} events`);
     
+    // Limit events to reduce token usage (take most recent 20 events)
+    const limitedEvents = events.slice(0, 20);
+    console.log(`Limited to ${limitedEvents.length} events to reduce token usage`);
+    
     // Sanitize calendar data for AI processing
-    console.log('Raw events sample:', JSON.stringify(events[0], null, 2));
-    const safeData = this.sanitizer.createMinimalSafeData(events, options);
+    console.log('Raw events sample:', JSON.stringify(limitedEvents[0], null, 2));
+    const safeData = this.sanitizer.createMinimalSafeData(limitedEvents, options);
     console.log('Sanitized data sample:', JSON.stringify(safeData[0], null, 2));
     
     // Validate data safety before sending to OpenAI
@@ -57,7 +61,7 @@ class CalendarIntelligence {
       }
     }
 
-    console.log(`Sanitized ${events.length} events to ${safeData.length} safe records`);
+    console.log(`Sanitized ${limitedEvents.length} events to ${safeData.length} safe records`);
 
     switch (analysisType) {
       case 'conflict_resolution':
@@ -143,7 +147,7 @@ Provide recommendations in this format:
       this.checkOpenAIAvailability();
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.3,
         max_tokens: 1500
