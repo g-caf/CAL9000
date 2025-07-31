@@ -443,6 +443,14 @@ async function handleCalendarQuery(message) {
     return;
   }
   
+  // Route to availability calculation if needed
+  if (queryInfo.needsAvailabilityCalculation || queryInfo.isAvailabilityCheck) {
+    console.log('Availability calculation needed');
+    addMessage(`Finding available time slots...`, 'assistant');
+    await calculateAndDisplayAvailability(queryInfo, message);
+    return;
+  }
+  
   // Traditional query handling
   if (queryInfo.person) {
     console.log('Found person:', queryInfo.person);
@@ -455,10 +463,6 @@ async function handleCalendarQuery(message) {
       console.log('Scheduling request detected');
       addMessage(`Finding available time slots for ${queryInfo.meetingDuration} meeting with ${queryInfo.person}...`, 'assistant');
       await findAvailableTimeSlots(queryInfo);
-    } else if (queryInfo.isAvailabilityCheck) {
-      console.log('Availability check detected');
-      addMessage(`Checking if ${queryInfo.person} is available...`, 'assistant');
-      await checkPersonAvailability(queryInfo);
     } else if (queryInfo.isCompanyMeetingQuery) {
       console.log('Meeting with person/company query detected');
       addMessage(`Looking for ${queryInfo.person}'s meetings with ${queryInfo.companyName}...`, 'assistant');
@@ -628,6 +632,101 @@ async function displayAvailabilityOptimization(result) {
 }
 
 /**
+ * Calculate and display availability slots
+ */
+async function calculateAndDisplayAvailability(queryInfo, originalMessage) {
+  try {
+    // Get calendar events for the specified time range
+    const calendarEvents = await fetchCalendarEventsForAvailability(queryInfo);
+    
+    // Call backend intelligent analysis for availability calculation
+    const response = await fetch(`${BASE_URL}/api/nlp/route`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        message: originalMessage,
+        calendarEvents: calendarEvents,
+        forceIntelligentAnalysis: true,
+        analysisType: 'conflict_resolution' // This finds optimal meeting times = available slots
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Availability analysis failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('Availability analysis result:', result);
+
+    if (result.success && result.result.recommendedTimes) {
+      await displayAvailabilitySlots(result.result, queryInfo);
+    } else {
+      addMessage('I couldn\'t find suitable time slots with your current constraints. Try adjusting the time range or duration.', 'assistant');
+    }
+
+  } catch (error) {
+    console.error('Availability calculation error:', error);
+    addMessage(`Sorry, I couldn't calculate availability: ${error.message}`, 'assistant');
+  }
+}
+
+/**
+ * Fetch calendar events specifically for availability calculation
+ */
+async function fetchCalendarEventsForAvailability(queryInfo) {
+  const calendarId = getCalendarIdForPerson(queryInfo.person || 'adrienne');
+  const { timeMin, timeMax } = queryInfo.dateRange;
+  
+  const response = await makeAuthorizedRequest(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?` +
+    `timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=100`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch calendar events: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.items || [];
+}
+
+/**
+ * Display available time slots
+ */
+async function displayAvailabilitySlots(analysisResult, queryInfo) {
+  let message = `🗓️ **Available Time Slots:**\n\n`;
+  
+  if (analysisResult.recommendedTimes && analysisResult.recommendedTimes.length > 0) {
+    analysisResult.recommendedTimes.forEach((slot, index) => {
+      message += `${index + 1}. **${slot.timeSlot}**\n`;
+      message += `   Confidence: ${slot.confidence}\n`;
+      if (slot.reasoning) {
+        message += `   ${slot.reasoning}\n`;
+      }
+      message += '\n';
+    });
+    
+    if (queryInfo.meetingDuration) {
+      message += `💡 **Duration requested:** ${queryInfo.meetingDuration}\n\n`;
+    }
+    
+    if (analysisResult.schedulingInsights && analysisResult.schedulingInsights.length > 0) {
+      message += `📋 **Scheduling Insights:**\n`;
+      analysisResult.schedulingInsights.forEach(insight => {
+        message += `• ${insight}\n`;
+      });
+    }
+  } else {
+    message = `No available time slots found for the requested criteria. Try:\n• Expanding the time range\n• Reducing meeting duration\n• Checking a different day`;
+  }
+  
+  addMessage(message, 'assistant');
+}
+
+/**
  * Display focus time analysis results
  */
 async function displayFocusTimeAnalysis(result) {
@@ -769,21 +868,18 @@ function convertLLMResultToQueryInfo(llmResult, originalMessage) {
   
   // Default date range if none specified
   if (!dateRange) {
-    if (llmResult.person || llmResult.companyName || llmResult.intent === 'meeting_search') {
-      dateRange = getNext30DaysRange(); // Broader search for person/company queries
-    } else {
-      dateRange = getThisWeekRange(); // Default for general queries
-    }
+    dateRange = getThisWeekRange(); // Default for all queries when no date specified
   }
   
   return {
     person: llmResult.person,
     dateRange,
-    isAvailabilityCheck: llmResult.intent === 'availability',
-    isSpecificEventQuery: llmResult.intent === 'meeting_search' && llmResult.meetingType,
-    isCompanyMeetingQuery: !!llmResult.companyName || llmResult.intent === 'meeting_search',
+    isAvailabilityCheck: llmResult.intent === 'find_availability',
+    needsAvailabilityCalculation: llmResult.needsAvailabilityCalculation || false,
+    isSpecificEventQuery: llmResult.intent === 'show_events' && llmResult.meetingType,
+    isCompanyMeetingQuery: !!llmResult.companyName || llmResult.intent === 'show_events',
     isNextMeetingQuery: originalMessage.toLowerCase().includes('next meeting'),
-    isSchedulingRequest: llmResult.intent === 'scheduling',
+    isSchedulingRequest: llmResult.intent === 'schedule_meeting',
     meetingDuration: llmResult.duration,
     companyName: llmResult.companyName,
     eventType: llmResult.meetingType,

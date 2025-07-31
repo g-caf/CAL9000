@@ -29,20 +29,28 @@ CRITICAL MAPPING RULES (follow exactly):
 - "me" → "adrienne" 
 - "i" → "adrienne"
 
+INTENT CLASSIFICATION RULES:
+- "find", "available", "free time", "open slots", "when can" → "find_availability" (calculate free time slots)
+- "show", "what meetings", "what's on", "events" → "show_events" (display existing events)
+- "schedule", "book", "set up meeting" → "schedule_meeting" (intelligent scheduling)
+- "my calendar", general queries → "calendar_view" (show overview)
+
 Examples:
-- "What is quinn doing tomorrow?" → "person": "sqs"
-- "Is quinn free?" → "person": "sqs" 
-- "My calendar" → "person": "adrienne"
+- "Find 30 minutes tomorrow" → "intent": "find_availability", "needsAvailabilityCalculation": true
+- "What's my availability on Monday?" → "intent": "find_availability", "needsAvailabilityCalculation": true  
+- "Show my meetings today" → "intent": "show_events", "needsAvailabilityCalculation": false
+- "What is quinn doing tomorrow?" → "intent": "show_events", "person": "sqs", "needsAvailabilityCalculation": false
 
 Return only valid JSON:
 {
-  "intent": "availability|meeting_search|scheduling|calendar_view",
+  "intent": "find_availability|show_events|schedule_meeting|calendar_view",
   "person": "sqs|adrienne|null",
   "duration": "30 minutes|1 hour|null", 
   "dateRange": "today|tomorrow|next week|this week|null",
   "meetingType": "1:1|sync|standup|call|meeting|null",
   "companyName": "company name|null",
-  "isPersonalQuery": true/false
+  "isPersonalQuery": true/false,
+  "needsAvailabilityCalculation": true/false
 }`;
 
   try {

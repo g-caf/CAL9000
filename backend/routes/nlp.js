@@ -110,7 +110,12 @@ router.post('/schedule', async (req, res) => {
 // Intelligent query routing endpoint
 router.post('/route', async (req, res) => {
   try {
-    const { message, calendarEvents = null } = req.body;
+    const { 
+      message, 
+      calendarEvents = null, 
+      forceIntelligentAnalysis = false,
+      analysisType = null 
+    } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -118,25 +123,44 @@ router.post('/route', async (req, res) => {
     
     console.log('Routing intelligent query:', message);
     
-    const routing = await routeIntelligentQuery(message, calendarEvents);
-    
+    let routing;
     let result = null;
     
-    if (routing.type === 'intelligence') {
-      if (!calendarEvents || !Array.isArray(calendarEvents)) {
-        return res.status(400).json({ 
-          error: 'Calendar events required for intelligent analysis',
-          routing
-        });
-      }
+    // Force intelligent analysis if requested (for availability calculations)
+    if (forceIntelligentAnalysis && analysisType && calendarEvents) {
+      console.log(`Forcing intelligent analysis: ${analysisType}`);
+      routing = {
+        type: 'intelligence',
+        analysisType: analysisType,
+        options: extractOptionsFromMessage(message), // Extract duration, etc.
+        requiresCalendarData: true
+      };
       
       result = await analyzeCalendarIntelligence(
         calendarEvents, 
         routing.analysisType, 
         routing.options
       );
-    } else if (routing.type === 'parsing') {
-      result = await parseCalendarQuery(message);
+    } else {
+      // Normal routing
+      routing = await routeIntelligentQuery(message, calendarEvents);
+      
+      if (routing.type === 'intelligence') {
+        if (!calendarEvents || !Array.isArray(calendarEvents)) {
+          return res.status(400).json({ 
+            error: 'Calendar events required for intelligent analysis',
+            routing
+          });
+        }
+        
+        result = await analyzeCalendarIntelligence(
+          calendarEvents, 
+          routing.analysisType, 
+          routing.options
+        );
+      } else if (routing.type === 'parsing') {
+        result = await parseCalendarQuery(message);
+      }
     }
     
     res.json({
@@ -154,5 +178,47 @@ router.post('/route', async (req, res) => {
     });
   }
 });
+
+// Helper function to extract options from message for forced analysis
+function extractOptionsFromMessage(message) {
+  const options = {};
+  
+  // Extract duration
+  const durationMatch = message.match(/(\d+)\s+(minute|hour|min|hr)s?/i);
+  if (durationMatch) {
+    const amount = parseInt(durationMatch[1]);
+    const unit = durationMatch[2].toLowerCase();
+    options.duration = unit.startsWith('h') ? amount * 60 : amount;
+  } else {
+    options.duration = 30; // Default 30 minutes
+  }
+  
+  // Extract urgency
+  if (message.toLowerCase().includes('urgent') || message.toLowerCase().includes('asap')) {
+    options.urgency = 'urgent';
+  } else if (message.toLowerCase().includes('soon')) {
+    options.urgency = 'high';
+  } else {
+    options.urgency = 'normal';
+  }
+  
+  // Set attendee count (for availability queries, typically 2 people)
+  options.attendeeCount = 2;
+  
+  // Set time range
+  if (message.toLowerCase().includes('next week')) {
+    options.timeRange = 'next_week';
+  } else if (message.toLowerCase().includes('this week')) {
+    options.timeRange = 'this_week';
+  } else if (message.toLowerCase().includes('tomorrow')) {
+    options.timeRange = 'tomorrow';
+  } else if (message.toLowerCase().includes('today')) {
+    options.timeRange = 'today';
+  } else {
+    options.timeRange = 'this_week';
+  }
+  
+  return options;
+}
 
 module.exports = router;
