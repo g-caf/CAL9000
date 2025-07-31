@@ -21,12 +21,18 @@ async function parseCalendarQuery(message) {
 
 Query: "${message}"
 
-Rules:
-- Map "quinn", "sqs", "sg" → "sqs" 
-- Map "my", "me", "i" → "adrienne"
-- For scheduling requests, extract duration and person
-- For availability checks, identify the person being asked about
-- For meeting searches, identify person/company and meeting type
+CRITICAL MAPPING RULES (follow exactly):
+- "quinn" → "sqs" (always!)
+- "sqs" → "sqs" 
+- "sg" → "sqs"
+- "my" → "adrienne"
+- "me" → "adrienne" 
+- "i" → "adrienne"
+
+Examples:
+- "What is quinn doing tomorrow?" → "person": "sqs"
+- "Is quinn free?" → "person": "sqs" 
+- "My calendar" → "person": "adrienne"
 
 Return only valid JSON:
 {

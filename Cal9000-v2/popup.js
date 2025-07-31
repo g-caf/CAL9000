@@ -319,17 +319,43 @@ function addMessage(text, sender) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${sender}`;
   
-  // Safely handle line breaks without innerHTML (prevents XSS)
-  const lines = text.split('\n');
-  lines.forEach((line, index) => {
-    if (index > 0) {
-      messageDiv.appendChild(document.createElement('br'));
-    }
-    messageDiv.appendChild(document.createTextNode(line));
-  });
+  // Check if this is AI-generated content with safe HTML formatting
+  if (sender === 'assistant' && text.includes('<span style=')) {
+    // Safely render AI-generated HTML with allowed styling
+    messageDiv.innerHTML = sanitizeAIHTML(text);
+  } else {
+    // Safely handle plain text without innerHTML (prevents XSS)
+    const lines = text.split('\n');
+    lines.forEach((line, index) => {
+      if (index > 0) {
+        messageDiv.appendChild(document.createElement('br'));
+      }
+      messageDiv.appendChild(document.createTextNode(line));
+    });
+  }
   
   messagesContainer.appendChild(messageDiv);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function sanitizeAIHTML(html) {
+  // Only allow safe HTML tags and inline styling for calendar formatting
+  const allowedTags = ['span', 'strong', 'em', 'br'];
+  const allowedStyles = ['background-color', 'color', 'padding', 'border-radius', 'font-weight'];
+  
+  // Simple sanitization - only allow span tags with specific inline styles
+  return html
+    .replace(/<(?!\/?(span|strong|em|br)\b)[^>]+>/gi, '') // Remove disallowed tags
+    .replace(/style="([^"]*)"/, (match, styles) => {
+      // Filter styles to only allow safe CSS properties
+      const safeSyles = styles.split(';')
+        .filter(style => {
+          const prop = style.split(':')[0]?.trim();
+          return allowedStyles.includes(prop);
+        })
+        .join(';');
+      return `style="${safeSyles}"`;
+    });
 }
 
 async function discoverCalendars(showDetails = false, silent = false) {
