@@ -47,8 +47,8 @@ async function showAuthenticatedUI() {
 async function startAuthentication() {
   console.log('Starting authentication...');
   
-  // Generate unique session ID
-  currentSessionId = 'ext_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  // Generate cryptographically secure session ID
+  currentSessionId = 'ext_' + crypto.randomUUID();
   console.log('Generated session ID:', currentSessionId);
   
   // Update UI
@@ -319,9 +319,14 @@ function addMessage(text, sender) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${sender}`;
   
-  // Preserve line breaks by using innerHTML with proper formatting
-  const formattedText = text.replace(/\n/g, '<br>');
-  messageDiv.innerHTML = formattedText;
+  // Safely handle line breaks without innerHTML (prevents XSS)
+  const lines = text.split('\n');
+  lines.forEach((line, index) => {
+    if (index > 0) {
+      messageDiv.appendChild(document.createElement('br'));
+    }
+    messageDiv.appendChild(document.createTextNode(line));
+  });
   
   messagesContainer.appendChild(messageDiv);
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
