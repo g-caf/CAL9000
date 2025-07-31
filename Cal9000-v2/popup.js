@@ -490,17 +490,18 @@ function parseCalendarQuery(message) {
   
   // Check if this is a scheduling request (finding available time slots)
   const schedulingPatterns = [
-    /(?:can you )?find time for (?:a\s+)?(\d+\s+minute|hour)(?:s)?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9\s]+?)(?:\s+(?:next|this)\s+week|\?|$)/i,
-    /(?:when can|can)\s+(?:i|we)\s+(?:meet|schedule|have)\s+(?:a\s+)?(\d+\s+minute|hour)(?:s)?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9\s]+?)(?:\?|$)/i,
-    /schedule\s+(?:a\s+)?(\d+\s+minute|hour)(?:s)?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9\s]+?)(?:\?|$)/i
+    /find time for (?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)(?:\s+(?:next|this)\s+week)?/i,
+    /(?:can you )?help.*find time for (?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)\s+with\s+([a-zA-Z0-9]+)/i,
+    /(?:when can|can)\s+(?:i|we)\s+(?:meet|schedule|have)\s+(?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9]+)/i,
+    /schedule\s+(?:a\s+)?(\d+)\s+(minute|hour)s?\s+(?:call|meeting)?\s+with\s+([a-zA-Z0-9]+)/i
   ];
 
   for (const pattern of schedulingPatterns) {
     const match = message.match(pattern);
     if (match) {
       isSchedulingRequest = true;
-      meetingDuration = match[1]?.trim();
-      person = match[2]?.trim().toLowerCase();
+      meetingDuration = `${match[1]} ${match[2]}`; // e.g., "30 minute"
+      person = match[3]?.trim().toLowerCase(); // person is now in match[3]
       console.log('Detected scheduling request for:', meetingDuration, 'with:', person);
       break;
     }
