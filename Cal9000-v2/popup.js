@@ -765,9 +765,12 @@ async function displayAvailabilitySlots(analysisResult, queryInfo) {
     
     // Add conflict analysis if available
     if (analysisResult.conflictAnalysis?.busyPeriods?.length > 0) {
-      message += '\n📅 **Busy periods:**\n';
+      message += '\nNot available at:\n';
       analysisResult.conflictAnalysis.busyPeriods.forEach(period => {
-        message += `• ${period}\n`;
+        const formattedPeriod = formatBusyPeriod(period);
+        if (formattedPeriod) {
+          message += `${formattedPeriod}\n`;
+        }
       });
     }
     
@@ -1989,6 +1992,44 @@ function formatFullEventTime(startDate, endDate, timeZone = null) {
   const dateStr = formatDateShortNoBrackets(startDate);
   const timeRange = formatEventTimeRange(startDate, endDate, timeZone);
   return `${dateStr} | ${timeRange}`;
+}
+
+function formatBusyPeriod(period) {
+  try {
+    // Handle different formats the AI might return
+    if (typeof period === 'string') {
+      // Format: "2025-08-04T09:00:00-06:00 to 2025-08-04T13:00:00-06:00"
+      if (period.includes(' to ')) {
+        const [startStr, endStr] = period.split(' to ');
+        const startDate = new Date(startStr.trim());
+        const endDate = new Date(endStr.trim());
+        
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+          const dateStr = formatDateShortNoBrackets(startDate);
+          const timeRange = formatEventTimeRange(startDate, endDate);
+          return `**${dateStr}** | ${timeRange}`;
+        }
+      }
+      
+      // Format: "August 4, 2025: 9:00 AM - 4:50 PM" 
+      if (period.includes(':') && (period.includes('AM') || period.includes('PM'))) {
+        // For human-readable format, just clean it up and bold the date part
+        const parts = period.split(':');
+        if (parts.length >= 2) {
+          const datePart = parts[0].trim();
+          const timePart = parts.slice(1).join(':').trim();
+          return `**${datePart}** | ${timePart}`;
+        }
+      }
+    }
+    
+    // Fallback: return as-is but clean up formatting
+    return period.replace(/^\• /, '').replace(/\*\*/g, '');
+    
+  } catch (error) {
+    console.error('Error formatting busy period:', error);
+    return period; // Return original if parsing fails
+  }
 }
 
 function filterAndSortEvents(events) {
